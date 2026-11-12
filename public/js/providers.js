@@ -151,6 +151,8 @@
     filters.verified = document.getElementById('f-verified').checked ? '1' : '';
     filters.page = 1;
     load();
+    // On phones, collapse the panel again so results are visible.
+    if (filterAside.classList.contains('filter-open')) filterToggle.click();
   });
 
   document.getElementById('f-q').value = filters.q;
@@ -163,6 +165,13 @@
   document.getElementById('f-verified').addEventListener('change', (e) => { filters.verified = e.target.checked ? '1' : ''; filters.page = 1; load(); });
   document.getElementById('sort').addEventListener('change', (e) => { filters.sort = e.target.value; filters.page = 1; load(); });
   document.getElementById('clear-filters').addEventListener('click', clearAll);
+  const filterAside = document.querySelector('.sticky-side');
+  const filterToggle = document.getElementById('filter-toggle');
+  filterToggle.addEventListener('click', () => {
+    const open = filterAside.classList.toggle('filter-open');
+    filterToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    filterToggle.textContent = open ? 'Hide filters' : 'Show filters';
+  });
   document.getElementById('active-chips').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-remove]');
     if (!btn) return;

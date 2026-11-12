@@ -75,3 +75,31 @@ Seeded geography: Plumtree Town, Dingumuzi, Empandeni, Tshitshi, Matjinge, Marul
 - Sessions are in memory: restarting the server invalidates every token, and the frontend clears its stored token on any 401.
 - Editing an approved listing as its owner resets it to `pending` by design, so moderators see the change.
 - The last active administrator cannot be demoted, suspended or deleted; the API returns 400 with an explanation.
+
+## Responsive layout
+
+The single stylesheet `public/css/app.css` drives every page. Breakpoints live in the
+`/* ---------- Responsive ---------- */` block at the end of the file and are written
+mobile-last, so the widest rules come first:
+
+| Range | What changes |
+| --- | --- |
+| `min-width: 1400px` | `--maxw` grows to 1320px for large monitors |
+| `max-width: 1100px` | footer drops to three columns |
+| `max-width: 1000px` | two-column grids collapse to one; dashboard sidebar becomes a horizontal scrolling nav |
+| `max-width: 720px` | header collapses behind the ☰ Menu button; filter sidebars collapse behind a Show/Hide button; small controls grow to 32px+ tap targets |
+| `max-width: 560px` | single-column cards, tighter padding, smaller charts and donuts |
+
+Conventions to keep it working:
+
+- Grid and flex children get `min-width: 0`. Without it, a wide child (a long badge, a horizontal nav, a table) stretches its column past the viewport.
+- Prefer fluid grids: `repeat(auto-fill, minmax(min(310px, 100%), 1fr))` so a track never exceeds a narrow screen.
+- Never put `grid-template-columns` in an inline `style` attribute on a page - it beats the media queries. Use a class such as `.grid-register` instead.
+- Wide tables scroll inside `.table-wrap`; leave the scroll hint background intact.
+- When adding a `.btn` that should be hidden until a breakpoint, qualify it (for example `.site-header .nav-toggle`) so the `.btn` rule cannot win on source order.
+
+Verify layout changes in a headless browser: load every page at roughly 320, 390, 768 and 1440 px
+wide and confirm no page scrolls horizontally (compare `documentElement.scrollWidth` with
+`clientWidth`) and that the mobile header and filter toggles open and close. The API smoke test in
+`test/smoke.js` does not cover layout.
+
