@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plumtree Connect · Jobs &amp; Service Providers in Plumtree, Matabeleland South</title>
+<meta name="description" content="Find jobs and trusted local service providers in Plumtree and Matabeleland South. Post vacancies, hire artisans and book services near you.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div data-header></div>
+
+<section class="hero">
+  <div class="container hero-inner">
+    <p class="eyebrow">Plumtree · Matabeleland South</p>
+    <h1>Work and services, all in one local board</h1>
+    <p class="lede">Plumtree Connect links job seekers, employers and service providers across Plumtree town, Bulilima, Mangwe and the surrounding wards. Everything is moderated, so what you see is real.</p>
+
+    <form class="hero-search" id="hero-search">
+      <label class="field">
+        <span class="lbl">What are you looking for?</span>
+        <input type="search" name="q" placeholder="e.g. driver, borehole, receptionist" autocomplete="off">
+      </label>
+      <label class="field">
+        <span class="lbl">Looking for</span>
+        <select name="type">
+          <option value="jobs">Jobs</option>
+          <option value="providers">Services</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="lbl">Area</span>
+        <select name="location" id="hero-location"><option value="">All areas</option></select>
+      </label>
+      <button class="btn" type="submit">Search</button>
+    </form>
+
+    <div class="hero-stats" id="hero-stats">
+      <div class="stat"><b class="skeleton" style="width:70px;height:26px;display:block">&nbsp;</b><span>Open jobs</span></div>
+      <div class="stat"><b class="skeleton" style="width:70px;height:26px;display:block">&nbsp;</b><span>Service providers</span></div>
+      <div class="stat"><b class="skeleton" style="width:70px;height:26px;display:block">&nbsp;</b><span>Vacancies</span></div>
+      <div class="stat"><b class="skeleton" style="width:70px;height:26px;display:block">&nbsp;</b><span>Registered users</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section container">
+  <div class="spread section-head">
+    <div>
+      <p class="eyebrow">Latest openings</p>
+      <h2>Featured jobs</h2>
+      <p class="muted mb0">Fresh vacancies posted by employers around Plumtree and the district.</p>
+    </div>
+    <a class="btn btn-outline" href="/jobs.html">View all jobs →</a>
+  </div>
+  <div class="grid-cards" id="featured-jobs"><div class="spinner"></div></div>
+</section>
+
+<section class="section-tight" style="background:var(--green-50);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="container">
+    <div class="spread section-head">
+      <div>
+        <p class="eyebrow">Local trades and skills</p>
+        <h2>Top rated service providers</h2>
+        <p class="muted mb0">Plumbers, builders, drillers, transporters and more — reviewed by neighbours.</p>
+      </div>
+      <a class="btn btn-outline" href="/providers.html">Browse services →</a>
+    </div>
+    <div class="grid-cards" id="top-providers"><div class="spinner"></div></div>
+  </div>
+</section>
+
+<section class="section container">
+  <div class="section-head center">
+    <p class="eyebrow">Explore</p>
+    <h2>Browse by category</h2>
+    <p class="muted">Ten job categories and ten service categories covering the local economy.</p>
+  </div>
+  <div class="tabs" style="justify-content:center;border:none" id="cat-tabs">
+    <button class="tab active" data-kind="job">Job categories</button>
+    <button class="tab" data-kind="service">Service categories</button>
+  </div>
+  <div class="grid-cards-3" id="cat-grid" style="margin-top:1.2rem"></div>
+</section>
+
+<section class="section-tight" style="background:var(--surface-3)">
+  <div class="container">
+    <div class="grid-3">
+      <div class="feature-tile">
+        <div class="ic">🧑‍🌾</div>
+        <h3>For job seekers</h3>
+        <p class="small muted">Build one profile, apply in a click and track every application from submitted to hired.</p>
+        <a href="/register.html" class="small">Create a free account →</a>
+      </div>
+      <div class="feature-tile">
+        <div class="ic">🏢</div>
+        <h3>For employers</h3>
+        <p class="small muted">Post a vacancy, review applicants in a dashboard and move candidates through your shortlist.</p>
+        <a href="/register.html" class="small">Post a vacancy →</a>
+      </div>
+      <div class="feature-tile">
+        <div class="ic">🔧</div>
+        <h3>For service providers</h3>
+        <p class="small muted">List your business, collect service requests and build a public rating from real customers.</p>
+        <a href="/register.html" class="small">List your business →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section container">
+  <div class="grid-side">
+    <div>
+      <p class="eyebrow">Where the work is</p>
+      <h2>Activity across the district</h2>
+      <p class="muted">Listings span Plumtree town and the rural wards that feed it — Bulilima, Mangwe, Tshitshi, Matjinge, Empandeni and more.</p>
+      <div class="panel">
+        <div class="panel-head"><b>Busiest locations</b><span class="small muted">Approved listings</span></div>
+        <div class="panel-body">
+          <div class="bars" id="location-bars"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card stack">
+      <h3>How Plumtree Connect works</h3>
+      <ul class="list-check">
+        <li>Register as a job seeker, employer or service provider.</li>
+        <li>Employers and providers post listings — an administrator reviews them.</li>
+        <li>Approved listings appear publicly and are searchable.</li>
+        <li>Applications and service requests land in the right dashboard.</li>
+        <li>Customers rate providers, keeping quality visible.</li>
+      </ul>
+      <a class="btn btn-block" href="/register.html">Get started — it is free</a>
+      <p class="tiny muted mb0 center">Demo administrator: admin@plumtreeconnect.co.zw / admin1234</p>
+    </div>
+  </div>
+</section>
+
+<div data-footer></div>
+<script src="/js/core.js"></script>
+<script src="/js/home.js"></script>
+</body>
+</html>

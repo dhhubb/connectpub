@@ -1,0 +1,20 @@
+{
+  "name": "plumtree-connect",
+  "version": "1.0.0",
+  "description": "Plumtree Connect - job and service provider listings platform for Plumtree, Matabeleland South",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/db.js --force",
+    "smoke": "node test/smoke.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "license": "MIT"
+}

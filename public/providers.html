@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Service providers · Plumtree Connect</title>
+<meta name="description" content="Find trusted local service providers in Plumtree and Matabeleland South — builders, plumbers, borehole drillers, electricians, transporters and more.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div data-header></div>
+
+<div style="background:linear-gradient(140deg,#1d3f4a,var(--green-800));color:#fff">
+  <div class="container" style="padding:1.8rem 1.15rem">
+    <p class="eyebrow" style="color:#f0b878">Service directory</p>
+    <h1 style="color:#fff;margin-bottom:.3rem">Hire a local service provider</h1>
+    <p class="mb0" style="color:rgba(255,255,255,.85)">Artisans, trades and businesses across Plumtree and the district. Send a request and get a quote.</p>
+  </div>
+</div>
+
+<main class="container" style="padding:1.6rem 1.15rem 2.6rem">
+  <div class="grid-side-left">
+    <aside class="card sticky-side">
+      <div class="spread" style="margin-bottom:.7rem">
+        <b>Filters</b>
+        <button class="btn btn-xs btn-ghost" id="clear-filters">Clear all</button>
+      </div>
+      <form id="filter-form">
+        <label class="field">
+          <span class="lbl">Keyword</span>
+          <input type="search" name="q" id="f-q" placeholder="Service or business…">
+        </label>
+        <div class="filter-group">
+          <span class="lbl">Service category</span>
+          <div class="filter-list" id="f-categories"></div>
+        </div>
+        <div class="filter-group">
+          <span class="lbl">Area</span>
+          <div class="filter-list" id="f-locations"></div>
+        </div>
+        <div class="filter-group">
+          <span class="lbl">Availability</span>
+          <div class="chips" id="f-availability"></div>
+        </div>
+        <label class="field">
+          <span class="lbl">Maximum starting price (USD)</span>
+          <input type="number" name="max_price" id="f-max-price" min="0" step="10" placeholder="Any">
+        </label>
+        <label class="field row" style="gap:.4rem;align-items:center">
+          <input type="checkbox" id="f-verified" style="width:auto">
+          <span class="lbl" style="margin:0">Verified providers only</span>
+        </label>
+        <button class="btn btn-block" type="submit">Apply filters</button>
+      </form>
+    </aside>
+
+    <section>
+      <div class="panel" style="margin-bottom:1rem">
+        <div class="panel-body row row-wrap" style="gap:.7rem">
+          <div class="grow"><input type="search" id="quick-search" placeholder="Search providers by name or service…"></div>
+          <label class="row small" style="gap:.35rem;white-space:nowrap">
+            <span class="muted">Sort</span>
+            <select id="sort" style="width:auto">
+              <option value="rating">Highest rated</option>
+              <option value="experience">Most experienced</option>
+              <option value="price">Lowest price</option>
+              <option value="popular">Most viewed</option>
+              <option value="recent">Newest</option>
+              <option value="name">Name A–Z</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="spread" style="margin-bottom:.9rem">
+        <p class="mb0 small muted" id="result-count">Loading…</p>
+        <div class="chips" id="active-chips"></div>
+      </div>
+      <div id="provider-list" class="grid-cards"><div class="spinner"></div></div>
+      <div class="pager" id="pager"></div>
+    </section>
+  </div>
+</main>
+
+<div data-footer></div>
+<script src="/js/core.js"></script>
+<script src="/js/providers.js"></script>
+</body>
+</html>

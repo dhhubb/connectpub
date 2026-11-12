@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Plumtree Connect</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div data-header></div>
+<main class="container" style="padding:2.4rem 1.15rem 3rem">
+  <div style="max-width:440px;margin:0 auto">
+    <div class="card card-pad-lg">
+      <p class="eyebrow">Welcome back</p>
+      <h1 style="font-size:1.5rem">Sign in to Plumtree Connect</h1>
+      <p class="muted small">Access your dashboard, applications and service requests.</p>
+      <div id="form-alert"></div>
+      <form id="login-form">
+        <label class="field">
+          <span class="lbl">Email address <span class="req">*</span></span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="field">
+          <span class="lbl">Password <span class="req">*</span></span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn btn-block" type="submit" id="submit-btn">Sign in</button>
+      </form>
+      <p class="small center" style="margin-top:1rem">New here? <a href="/register.html">Create an account</a></p>
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <h3 style="font-size:.95rem">Demo accounts</h3>
+      <p class="tiny muted">Sample data is preloaded. Use any of these to explore each role.</p>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Role</th><th>Email</th><th>Password</th></tr></thead>
+          <tbody>
+            <tr><td>Administrator</td><td class="mono">admin@plumtreeconnect.co.zw</td><td class="mono">admin1234</td></tr>
+            <tr><td>Job seeker</td><td class="mono">thandiwe@example.com</td><td class="mono">seeker1234</td></tr>
+            <tr><td>Employer</td><td class="mono">hr@plumtreeagro.co.zw</td><td class="mono">employer1234</td></tr>
+            <tr><td>Service provider</td><td class="mono">info@tshitshiboreholes.co.zw</td><td class="mono">provider1234</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="btn-group" style="margin-top:.7rem" id="quick-logins">
+        <button class="btn btn-xs btn-ghost" data-email="admin@plumtreeconnect.co.zw" data-password="admin1234">Fill admin</button>
+        <button class="btn btn-xs btn-ghost" data-email="thandiwe@example.com" data-password="seeker1234">Fill seeker</button>
+        <button class="btn btn-xs btn-ghost" data-email="hr@plumtreeagro.co.zw" data-password="employer1234">Fill employer</button>
+        <button class="btn btn-xs btn-ghost" data-email="info@tshitshiboreholes.co.zw" data-password="provider1234">Fill provider</button>
+      </div>
+    </div>
+  </div>
+</main>
+<div data-footer></div>
+<script src="/js/core.js"></script>
+<script src="/js/login.js"></script>
+</body>
+</html>

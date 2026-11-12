@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create an account · Plumtree Connect</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div data-header></div>
+<main class="container" style="padding:2.4rem 1.15rem 3rem">
+  <div class="grid-side" style="max-width:1000px;margin:0 auto;grid-template-columns:1.1fr .9fr">
+    <div class="card card-pad-lg">
+      <p class="eyebrow">Get started</p>
+      <h1 style="font-size:1.5rem">Create your free account</h1>
+      <p class="muted small">Choose the account type that fits you. You can browse jobs and services either way.</p>
+      <div id="form-alert"></div>
+      <form id="register-form">
+        <div class="filter-group">
+          <span class="lbl">I am registering as <span class="req">*</span></span>
+          <div class="grid-3" id="role-picker">
+            <label class="feature-tile" style="cursor:pointer;text-align:center">
+              <input type="radio" name="role" value="seeker" checked style="width:auto">
+              <div class="ic">🧑‍🌾</div><b class="small">Job seeker</b><div class="tiny muted">Find and apply for work</div>
+            </label>
+            <label class="feature-tile" style="cursor:pointer;text-align:center">
+              <input type="radio" name="role" value="employer" style="width:auto">
+              <div class="ic">🏢</div><b class="small">Employer</b><div class="tiny muted">Post vacancies</div>
+            </label>
+            <label class="feature-tile" style="cursor:pointer;text-align:center">
+              <input type="radio" name="role" value="provider" style="width:auto">
+              <div class="ic">🔧</div><b class="small">Service provider</b><div class="tiny muted">List your business</div>
+            </label>
+          </div>
+        </div>
+        <label class="field">
+          <span class="lbl">Full name <span class="req">*</span></span>
+          <input type="text" name="name" autocomplete="name" required>
+        </label>
+        <div class="grid-2">
+          <label class="field">
+            <span class="lbl">Email address <span class="req">*</span></span>
+            <input type="email" name="email" autocomplete="email" required>
+          </label>
+          <label class="field">
+            <span class="lbl">Phone number</span>
+            <input type="tel" name="phone" placeholder="+263…" autocomplete="tel">
+          </label>
+        </div>
+        <div class="grid-2">
+          <label class="field">
+            <span class="lbl">Password <span class="req">*</span></span>
+            <input type="password" name="password" autocomplete="new-password" required>
+            <span class="tiny muted">At least 8 characters.</span>
+          </label>
+          <label class="field">
+            <span class="lbl">Ward or area</span>
+            <select name="ward" id="ward-select"><option value="">Select your area</option></select>
+          </label>
+        </div>
+        <label class="field">
+          <span class="lbl">Short profile</span>
+          <textarea name="bio" rows="3" placeholder="Tell employers or customers a little about yourself."></textarea>
+        </label>
+        <button class="btn btn-block" type="submit" id="submit-btn">Create account</button>
+        <p class="tiny muted center" style="margin-top:.7rem">By registering you agree to keep listings honest and respectful.</p>
+      </form>
+      <p class="small center" style="margin-top:1rem">Already have an account? <a href="/login.html">Sign in</a></p>
+    </div>
+
+    <aside class="stack">
+      <div class="card">
+        <h3>What you get</h3>
+        <ul class="list-check" id="benefits"></ul>
+      </div>
+      <div class="card">
+        <h3>Built for the district</h3>
+        <p class="small muted mb0">Plumtree Connect covers Plumtree town and the wards of Bulilima, Mangwe, Tshitshi, Matjinge, Empandeni and neighbouring areas. Listings are reviewed by an administrator before they go live.</p>
+      </div>
+    </aside>
+  </div>
+</main>
+<div data-footer></div>
+<script src="/js/core.js"></script>
+<script src="/js/register.js"></script>
+</body>
+</html>
