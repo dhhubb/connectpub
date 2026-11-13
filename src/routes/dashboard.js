@@ -4,7 +4,7 @@ const express = require('express');
 const { db } = require('../db');
 const { requireAuth } = require('../auth');
 const {
-  asyncHandler, httpError, logAudit, toInt, pickEnum,
+  asyncHandler, httpError, logAudit, toInt, pickEnum, pageParams,
   APPLICATION_STATUSES, REQUEST_STATUSES,
   APPLICATION_STATUS_LABELS, REQUEST_STATUS_LABELS,
 } = require('../util');
@@ -83,6 +83,16 @@ router.get('/overview', asyncHandler((req, res) => {
 // ---------- Applications (seeker view) ----------
 
 router.get('/applications', asyncHandler((req, res) => {
+  const { page, perPage } = pageParams(req.query, { defaultPerPage: 12 });
+  const status = pickEnum(req.query.status, APPLICATION_STATUSES, null);
+  const where = ['a.applicant_id = ?'];
+  const params = [req.user.id];
+  if (status) { where.push('a.status = ?'); params.push(status); }
+  const whereSql = `WHERE ${where.join(' AND ')}`;
+
+  const total = db.prepare(`SELECT COUNT(*) AS n FROM applications a ${whereSql}`).get(...params).n;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, pages);
   const rows = db.prepare(`
     SELECT a.*, j.title AS job_title, j.company, j.status AS job_status, j.deadline,
            l.name AS location_name, c.name AS category_name, c.icon AS category_icon
@@ -90,8 +100,12 @@ router.get('/applications', asyncHandler((req, res) => {
     JOIN jobs j ON j.id = a.job_id
     LEFT JOIN locations l ON l.id = j.location_id
     LEFT JOIN categories c ON c.id = j.category_id
-    WHERE a.applicant_id = ? ORDER BY a.created_at DESC`).all(req.user.id);
-  res.json({ applications: rows.map(serializeApplicationRow) });
+    ${whereSql} ORDER BY a.created_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, perPage, (safePage - 1) * perPage);
+  res.json({
+    applications: rows.map(serializeApplicationRow),
+    pagination: { page: safePage, perPage, total, pages, hasPrev: safePage > 1, hasNext: safePage < pages },
+  });
 }));
 
 router.patch('/applications/:id', asyncHandler((req, res) => {
@@ -125,6 +139,7 @@ router.patch('/applications/:id', asyncHandler((req, res) => {
 // ---------- Applications (employer view) ----------
 
 router.get('/job-applications', asyncHandler((req, res) => {
+  const { page, perPage } = pageParams(req.query, { defaultPerPage: 12 });
   const where = [];
   const params = [];
   if (req.user.role !== 'admin') { where.push('j.employer_id = ?'); params.push(req.user.id); }
@@ -134,30 +149,46 @@ router.get('/job-applications', asyncHandler((req, res) => {
   if (status) { where.push('a.status = ?'); params.push(status); }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+  const total = db.prepare(`
+    SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id = a.job_id ${whereSql}`).get(...params).n;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, pages);
   const rows = db.prepare(`
     SELECT a.*, j.title AS job_title, j.company, j.status AS job_status,
            u.name AS applicant_name, u.email AS applicant_email, u.phone AS applicant_phone, u.ward AS applicant_ward, u.bio AS applicant_bio
     FROM applications a JOIN jobs j ON j.id = a.job_id JOIN users u ON u.id = a.applicant_id
-    ${whereSql} ORDER BY a.created_at DESC`).all(...params);
-  res.json({ applications: rows.map(serializeApplicationRow) });
+    ${whereSql} ORDER BY a.created_at DESC LIMIT ? OFFSET ?`).all(...params, perPage, (safePage - 1) * perPage);
+  res.json({
+    applications: rows.map(serializeApplicationRow),
+    pagination: { page: safePage, perPage, total, pages, hasPrev: safePage > 1, hasNext: safePage < pages },
+  });
 }));
 
 // ---------- Service requests ----------
 
 router.get('/service-requests', asyncHandler((req, res) => {
+  const { page, perPage } = pageParams(req.query, { defaultPerPage: 12 });
   const mine = req.query.mine === '1';
-  const rows = mine
-    ? db.prepare(`
-        SELECT r.*, p.business_name, p.id AS provider_id, u.name AS requester_name
-        FROM service_requests r JOIN providers p ON p.id = r.provider_id
-        LEFT JOIN users u ON u.id = r.requester_id
-        WHERE r.requester_id = ? ORDER BY r.created_at DESC`).all(req.user.id)
-    : db.prepare(`
-        SELECT r.*, p.business_name, p.id AS provider_id, u.name AS requester_name
-        FROM service_requests r JOIN providers p ON p.id = r.provider_id
-        LEFT JOIN users u ON u.id = r.requester_id
-        WHERE p.owner_id = ? ORDER BY r.created_at DESC`).all(req.user.id);
-  res.json({ requests: rows.map(serializeRequestRow), view: mine ? 'sent' : 'received' });
+  const where = [mine ? 'r.requester_id = ?' : 'p.owner_id = ?'];
+  const params = [req.user.id];
+  const status = pickEnum(req.query.status, REQUEST_STATUSES, null);
+  if (status) { where.push('r.status = ?'); params.push(status); }
+  const whereSql = `WHERE ${where.join(' AND ')}`;
+
+  const total = db.prepare(`
+    SELECT COUNT(*) AS n FROM service_requests r JOIN providers p ON p.id = r.provider_id ${whereSql}`).get(...params).n;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, pages);
+  const rows = db.prepare(`
+    SELECT r.*, p.business_name, p.id AS provider_id, u.name AS requester_name
+    FROM service_requests r JOIN providers p ON p.id = r.provider_id
+    LEFT JOIN users u ON u.id = r.requester_id
+    ${whereSql} ORDER BY r.created_at DESC LIMIT ? OFFSET ?`).all(...params, perPage, (safePage - 1) * perPage);
+  res.json({
+    requests: rows.map(serializeRequestRow),
+    view: mine ? 'sent' : 'received',
+    pagination: { page: safePage, perPage, total, pages, hasPrev: safePage > 1, hasNext: safePage < pages },
+  });
 }));
 
 router.patch('/service-requests/:id', asyncHandler((req, res) => {

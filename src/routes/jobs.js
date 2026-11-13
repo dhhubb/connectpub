@@ -4,7 +4,7 @@ const express = require('express');
 const { db } = require('../db');
 const { requireAuth, requireRole } = require('../auth');
 const {
-  asyncHandler, httpError, logAudit, pageParams, pickEnum, toInt, toNum,
+  asyncHandler, httpError, logAudit, pageParams, ftsQuery, pickEnum, toInt, toNum,
   JOB_TYPES, WORK_MODES, JOB_TYPE_LABELS, WORK_MODE_LABELS, STATUS_LABELS,
 } = require('../util');
 
@@ -13,11 +13,13 @@ const router = express.Router();
 const SELECT_JOB = `
   SELECT j.*,
          c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
+         g.name AS group_name, g.slug AS group_slug, g.icon AS group_icon,
          l.name AS location_name, l.kind AS location_kind,
          u.name AS employer_name, u.email AS employer_email, u.phone AS employer_phone,
          (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id) AS application_count
   FROM jobs j
   LEFT JOIN categories c ON c.id = j.category_id
+  LEFT JOIN category_groups g ON g.id = c.group_id
   LEFT JOIN locations l ON l.id = j.location_id
   LEFT JOIN users u ON u.id = j.employer_id`;
 
@@ -30,6 +32,7 @@ function serializeJob(row, { full = false, savedIds = null, myApplication = null
     employerId: row.employer_id,
     employerName: row.employer_name,
     category: row.category_id ? { id: row.category_id, name: row.category_name, slug: row.category_slug, icon: row.category_icon } : null,
+    group: row.group_slug ? { name: row.group_name, slug: row.group_slug, icon: row.group_icon } : null,
     location: row.location_id ? { id: row.location_id, name: row.location_name, kind: row.location_kind } : null,
     jobType: row.job_type,
     jobTypeLabel: JOB_TYPE_LABELS[row.job_type] || row.job_type,
@@ -92,6 +95,23 @@ function resolveLocationId(value) {
   return bySlug ? bySlug.id : null;
 }
 
+/**
+ * Resolve a group filter to the set of category ids that belong to it. Returns
+ * null when the caller asked for a group that does not exist or applies to the
+ * other listing kind, so an unknown slug simply yields no extra constraint.
+ */
+function resolveGroup(value, kind) {
+  if (value === undefined || value === null || value === '') return null;
+  const group = db.prepare('SELECT * FROM category_groups WHERE slug = ? OR id = ?')
+    .get(String(value), toInt(value) || -1);
+  if (!group) return null;
+  const rows = db.prepare(`
+    SELECT c.id FROM categories c
+    JOIN category_groups g ON g.id = c.group_id
+    WHERE c.kind = ? AND g.id = ?`).all(kind, group.id);
+  return { group, categoryIds: rows.map((r) => r.id) };
+}
+
 // ---------- Public browsing ----------
 
 router.get('/', asyncHandler((req, res) => {
@@ -103,13 +123,23 @@ router.get('/', asyncHandler((req, res) => {
     where.push("(j.deadline IS NULL OR j.deadline >= date('now'))");
   }
   const q = String(req.query.q || '').trim();
-  if (q) {
-    where.push('(j.title LIKE ? OR j.company LIKE ? OR j.description LIKE ?)');
-    const like = `%${q}%`;
-    params.push(like, like, like);
+  const match = ftsQuery(q);
+  if (match) {
+    // Join against the inverted index rather than scanning with LIKE '%term%'.
+    where.push('j.id IN (SELECT rowid FROM jobs_fts WHERE jobs_fts MATCH ?)');
+    params.push(match);
   }
   const categoryId = resolveCategoryId(req.query.category);
   if (categoryId) { where.push('j.category_id = ?'); params.push(categoryId); }
+  const groupFilter = resolveGroup(req.query.group, 'job');
+  if (groupFilter) {
+    if (!groupFilter.categoryIds.length) {
+      where.push('1 = 0');
+    } else {
+      where.push(`j.category_id IN (${groupFilter.categoryIds.map(() => '?').join(',')})`);
+      params.push(...groupFilter.categoryIds);
+    }
+  }
   const locationId = resolveLocationId(req.query.location);
   if (locationId) { where.push('j.location_id = ?'); params.push(locationId); }
   const jobType = pickEnum(req.query.job_type, JOB_TYPES, null);
@@ -127,18 +157,32 @@ router.get('/', asyncHandler((req, res) => {
     salary: 'COALESCE(j.salary_max, j.salary_min, 0) DESC',
     deadline: "CASE WHEN j.deadline IS NULL THEN 1 ELSE 0 END, j.deadline ASC",
     popular: 'j.views DESC',
+    title: 'j.title ASC',
+    company: 'j.company ASC',
   };
-  const orderBy = sortMap[String(req.query.sort || 'recent')] || sortMap.recent;
+  const sortKey = String(req.query.sort || 'recent');
+  const orderBy = sortMap[sortKey] || sortMap.recent;
 
   const total = db.prepare(`SELECT COUNT(*) AS n FROM jobs j ${whereSql}`).get(...params).n;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  // Clamp instead of returning an empty page when a deep link overshoots.
+  const safePage = Math.min(page, pages);
+  const safeOffset = (safePage - 1) * perPage;
   const rows = db.prepare(
     `${SELECT_JOB} ${whereSql} ORDER BY j.featured DESC, ${orderBy} LIMIT ? OFFSET ?`
-  ).all(...params, perPage, offset);
+  ).all(...params, perPage, safeOffset);
 
   const savedIds = savedJobIds(req.user && req.user.id);
   res.json({
     jobs: rows.map((r) => serializeJob(r, { savedIds })),
-    pagination: { page, perPage, total, pages: Math.max(1, Math.ceil(total / perPage)) },
+    pagination: {
+      page: safePage, perPage, total, pages,
+      from: total ? safeOffset + 1 : 0,
+      to: Math.min(total, safeOffset + rows.length),
+      hasPrev: safePage > 1, hasNext: safePage < pages,
+    },
+    sort: sortKey,
+    group: groupFilter ? { id: groupFilter.group.id, slug: groupFilter.group.slug, name: groupFilter.group.name } : null,
     filters: { jobTypes: JOB_TYPES.map((t) => ({ value: t, label: JOB_TYPE_LABELS[t] })), workModes: WORK_MODES.map((w) => ({ value: w, label: WORK_MODE_LABELS[w] })) },
   });
 }));
@@ -324,4 +368,4 @@ function serializeApplication(row) {
   };
 }
 
-module.exports = { router, serializeJob, serializeApplication, resolveCategoryId, resolveLocationId, SELECT_JOB };
+module.exports = { router, serializeJob, serializeApplication, resolveCategoryId, resolveLocationId, resolveGroup, SELECT_JOB };

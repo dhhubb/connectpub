@@ -5,6 +5,7 @@ const { db } = require('../db');
 const { requireAuth, requireRole } = require('../auth');
 const {
   asyncHandler, httpError, logAudit, slugify, toInt, pageParams, pickEnum, publicUser, USER_ROLES,
+  APPLICATION_STATUSES, REQUEST_STATUSES,
 } = require('../util');
 const { serializeJob } = require('./jobs');
 const { serializeProvider } = require('./providers');
@@ -12,6 +13,13 @@ const { serializeRequestRow, serializeApplicationRow } = require('./dashboard');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin'));
+
+/** Accept either a group id or slug from the admin form and return the id. */
+function groupIdFromSlug(value) {
+  if (!value) return null;
+  const row = db.prepare('SELECT id FROM category_groups WHERE slug = ? OR id = ?').get(String(value), toInt(value) || -1);
+  return row ? row.id : null;
+}
 
 const JOB_STATUSES = ['pending', 'approved', 'rejected', 'closed', 'expired'];
 const PROVIDER_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
@@ -318,15 +326,77 @@ router.delete('/users/:id', asyncHandler((req, res) => {
   res.json({ ok: true });
 }));
 
+// ---------- Category groups ----------
+
+router.get('/groups', asyncHandler((_req, res) => {
+  const rows = db.prepare(`
+    SELECT g.*,
+      (SELECT COUNT(*) FROM categories c WHERE c.group_id = g.id) AS category_count,
+      (SELECT COUNT(*) FROM jobs j JOIN categories c ON c.id = j.category_id WHERE c.group_id = g.id) AS job_count,
+      (SELECT COUNT(*) FROM providers p JOIN categories c ON c.id = p.category_id WHERE c.group_id = g.id) AS provider_count
+    FROM category_groups g ORDER BY g.sort_order, g.name`).all();
+  res.json({
+    groups: rows.map((g) => ({
+      id: g.id, name: g.name, slug: g.slug, icon: g.icon, scope: g.scope, description: g.description,
+      sortOrder: g.sort_order, categoryCount: g.category_count, jobCount: g.job_count, providerCount: g.provider_count,
+    })),
+  });
+}));
+
+router.post('/groups', asyncHandler((req, res) => {
+  const body = req.body || {};
+  const name = String(body.name || '').trim();
+  const scope = pickEnum(body.scope, ['job', 'service', 'both'], 'both');
+  if (name.length < 2) return res.status(400).json({ error: 'Validation failed', errors: { name: 'Group name is required' } });
+  const slug = slugify(body.slug || name);
+  if (db.prepare('SELECT id FROM category_groups WHERE slug = ?').get(slug)) {
+    return res.status(409).json({ error: 'A group with that name already exists', errors: { name: 'Name already used' } });
+  }
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS n FROM category_groups').get().n;
+  const info = db.prepare('INSERT INTO category_groups (name, slug, icon, scope, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(name, slug, String(body.icon || '📁').trim(), scope, String(body.description || '').trim() || null, maxOrder + 1);
+  logAudit(req.user.id, 'create_group', 'category_group', Number(info.lastInsertRowid), { name, scope });
+  res.status(201).json({ group: db.prepare('SELECT * FROM category_groups WHERE id = ?').get(Number(info.lastInsertRowid)) });
+}));
+
+router.patch('/groups/:id', asyncHandler((req, res) => {
+  const id = toInt(req.params.id);
+  const group = db.prepare('SELECT * FROM category_groups WHERE id = ?').get(id);
+  if (!group) throw httpError(404, 'Category group not found');
+  const body = req.body || {};
+  const name = String(body.name ?? group.name).trim();
+  const slug = slugify(body.slug || name);
+  if (db.prepare('SELECT id FROM category_groups WHERE slug = ? AND id != ?').get(slug, id)) {
+    return res.status(409).json({ error: 'Another group already uses that name', errors: { name: 'Name already used' } });
+  }
+  db.prepare('UPDATE category_groups SET name = ?, slug = ?, icon = ?, scope = ?, description = ? WHERE id = ?')
+    .run(name, slug, String(body.icon ?? group.icon ?? '📁'), pickEnum(body.scope, ['job', 'service', 'both'], group.scope),
+      String(body.description ?? group.description ?? '').trim() || null, id);
+  logAudit(req.user.id, 'update_group', 'category_group', id, { name });
+  res.json({ group: db.prepare('SELECT * FROM category_groups WHERE id = ?').get(id) });
+}));
+
+router.delete('/groups/:id', asyncHandler((req, res) => {
+  const id = toInt(req.params.id);
+  const group = db.prepare('SELECT * FROM category_groups WHERE id = ?').get(id);
+  if (!group) throw httpError(404, 'Category group not found');
+  const categories = db.prepare('SELECT COUNT(*) AS n FROM categories WHERE group_id = ?').get(id).n;
+  if (categories > 0) throw httpError(400, `Move the ${categories} categor${categories === 1 ? 'y' : 'ies'} in this group before deleting it`);
+  db.prepare('DELETE FROM category_groups WHERE id = ?').run(id);
+  logAudit(req.user.id, 'delete_group', 'category_group', id, { name: group.name });
+  res.json({ ok: true });
+}));
+
 // ---------- Categories ----------
 
 router.get('/categories', asyncHandler((_req, res) => {
   const rows = db.prepare(`
-    SELECT c.*,
+    SELECT c.*, g.name AS group_name, g.slug AS group_slug, g.icon AS group_icon,
       (SELECT COUNT(*) FROM jobs j WHERE j.category_id = c.id) AS job_count,
       (SELECT COUNT(*) FROM providers p WHERE p.category_id = c.id) AS provider_count
-    FROM categories c ORDER BY c.kind, c.name`).all();
-  res.json({ categories: rows.map((c) => ({ id: c.id, name: c.name, slug: c.slug, kind: c.kind, icon: c.icon, description: c.description, jobCount: c.job_count, providerCount: c.provider_count })) });
+    FROM categories c LEFT JOIN category_groups g ON g.id = c.group_id
+    ORDER BY c.kind, c.sort_order, c.name`).all();
+  res.json({ categories: rows.map((c) => ({ id: c.id, name: c.name, slug: c.slug, kind: c.kind, icon: c.icon, description: c.description, groupId: c.group_id, group: c.group_slug ? { name: c.group_name, slug: c.group_slug, icon: c.group_icon } : null, jobCount: c.job_count, providerCount: c.provider_count })) });
 }));
 
 router.post('/categories', asyncHandler((req, res) => {
@@ -339,9 +409,10 @@ router.post('/categories', asyncHandler((req, res) => {
   if (db.prepare('SELECT id FROM categories WHERE slug = ?').get(slug)) {
     return res.status(409).json({ error: 'A category with that name already exists', errors: { name: 'Name already used' } });
   }
-  const info = db.prepare('INSERT INTO categories (name, slug, kind, icon, description) VALUES (?, ?, ?, ?, ?)')
-    .run(name, slug, kind, String(body.icon || '📌').trim(), String(body.description || '').trim() || null);
-  logAudit(req.user.id, 'create_category', 'category', Number(info.lastInsertRowid), { name, kind });
+  const groupId = body.group_id ? toInt(body.group_id) : (body.group ? groupIdFromSlug(body.group) : null);
+  const info = db.prepare('INSERT INTO categories (name, slug, kind, icon, description, group_id) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(name, slug, kind, String(body.icon || '📌').trim(), String(body.description || '').trim() || null, groupId);
+  logAudit(req.user.id, 'create_category', 'category', Number(info.lastInsertRowid), { name, kind, groupId });
   res.status(201).json({ category: db.prepare('SELECT * FROM categories WHERE id = ?').get(Number(info.lastInsertRowid)) });
 }));
 
@@ -355,10 +426,13 @@ router.patch('/categories/:id', asyncHandler((req, res) => {
   if (db.prepare('SELECT id FROM categories WHERE slug = ? AND id != ?').get(slug, id)) {
     return res.status(409).json({ error: 'Another category already uses that name', errors: { name: 'Name already used' } });
   }
-  db.prepare('UPDATE categories SET name = ?, slug = ?, kind = ?, icon = ?, description = ? WHERE id = ?')
+  let groupId = category.group_id;
+  if (body.group_id !== undefined) groupId = body.group_id ? toInt(body.group_id) : null;
+  else if (body.group !== undefined) groupId = groupIdFromSlug(body.group);
+  db.prepare('UPDATE categories SET name = ?, slug = ?, kind = ?, icon = ?, description = ?, group_id = ? WHERE id = ?')
     .run(name, slug, pickEnum(body.kind, ['job', 'service'], category.kind), String(body.icon ?? category.icon ?? '📌'),
-      String(body.description ?? category.description ?? '').trim() || null, id);
-  logAudit(req.user.id, 'update_category', 'category', id, { name });
+      String(body.description ?? category.description ?? '').trim() || null, groupId, id);
+  logAudit(req.user.id, 'update_category', 'category', id, { name, groupId });
   res.json({ category: db.prepare('SELECT * FROM categories WHERE id = ?').get(id) });
 }));
 
@@ -432,32 +506,85 @@ router.delete('/locations/:id', asyncHandler((req, res) => {
 // ---------- Applications, requests, reviews ----------
 
 router.get('/applications', asyncHandler((req, res) => {
+  const { page, perPage, offset } = pageParams(req.query, { defaultPerPage: 24 });
+  const where = [];
+  const params = [];
+  const status = pickEnum(req.query.status, APPLICATION_STATUSES, null);
+  if (status) { where.push('a.status = ?'); params.push(status); }
+  const q = String(req.query.q || '').trim();
+  if (q) { where.push('(j.title LIKE ? OR u.name LIKE ? OR u.email LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const total = db.prepare(`
+    SELECT COUNT(*) AS n FROM applications a JOIN jobs j ON j.id = a.job_id JOIN users u ON u.id = a.applicant_id
+    ${whereSql}`).get(...params).n;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, pages);
   const rows = db.prepare(`
     SELECT a.*, j.title AS job_title, j.company, j.status AS job_status,
            u.name AS applicant_name, u.email AS applicant_email, u.phone AS applicant_phone
     FROM applications a JOIN jobs j ON j.id = a.job_id JOIN users u ON u.id = a.applicant_id
-    ORDER BY a.created_at DESC LIMIT 200`).all();
-  res.json({ applications: rows.map(serializeApplicationRow) });
+    ${whereSql} ORDER BY a.created_at DESC LIMIT ? OFFSET ?`).all(...params, perPage, (safePage - 1) * perPage);
+
+  res.json({
+    applications: rows.map(serializeApplicationRow),
+    pagination: { page: safePage, perPage, total, pages, hasPrev: safePage > 1, hasNext: safePage < pages },
+  });
 }));
 
-router.get('/service-requests', asyncHandler((_req, res) => {
+router.get('/service-requests', asyncHandler((req, res) => {
+  const { page, perPage } = pageParams(req.query, { defaultPerPage: 24 });
+  const where = [];
+  const params = [];
+  const status = pickEnum(req.query.status, REQUEST_STATUSES, null);
+  if (status) { where.push('r.status = ?'); params.push(status); }
+  const q = String(req.query.q || '').trim();
+  if (q) { where.push('(p.business_name LIKE ? OR r.name LIKE ? OR r.service_needed LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const total = db.prepare(`
+    SELECT COUNT(*) AS n FROM service_requests r JOIN providers p ON p.id = r.provider_id
+    LEFT JOIN users u ON u.id = r.requester_id ${whereSql}`).get(...params).n;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, pages);
   const rows = db.prepare(`
     SELECT r.*, p.business_name, p.id AS provider_id, u.name AS requester_name
     FROM service_requests r JOIN providers p ON p.id = r.provider_id
-    LEFT JOIN users u ON u.id = r.requester_id ORDER BY r.created_at DESC LIMIT 200`).all();
-  res.json({ requests: rows.map(serializeRequestRow) });
+    LEFT JOIN users u ON u.id = r.requester_id ${whereSql} ORDER BY r.created_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, perPage, (safePage - 1) * perPage);
+
+  res.json({
+    requests: rows.map(serializeRequestRow),
+    pagination: { page: safePage, perPage, total, pages, hasPrev: safePage > 1, hasNext: safePage < pages },
+  });
 }));
 
-router.get('/reviews', asyncHandler((_req, res) => {
+router.get('/reviews', asyncHandler((req, res) => {
+  const { page, perPage } = pageParams(req.query, { defaultPerPage: 24 });
+  const where = [];
+  const params = [];
+  const status = pickEnum(req.query.status, ['published', 'hidden'], null);
+  if (status) { where.push('r.status = ?'); params.push(status); }
+  const q = String(req.query.q || '').trim();
+  if (q) { where.push('(p.business_name LIKE ? OR u.name LIKE ? OR r.comment LIKE ?)'); params.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const total = db.prepare(`
+    SELECT COUNT(*) AS n FROM reviews r JOIN providers p ON p.id = r.provider_id JOIN users u ON u.id = r.user_id
+    ${whereSql}`).get(...params).n;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, pages);
   const rows = db.prepare(`
     SELECT r.*, p.business_name, u.name AS user_name FROM reviews r
     JOIN providers p ON p.id = r.provider_id JOIN users u ON u.id = r.user_id
-    ORDER BY r.created_at DESC LIMIT 200`).all();
+    ${whereSql} ORDER BY r.created_at DESC LIMIT ? OFFSET ?`).all(...params, perPage, (safePage - 1) * perPage);
+
   res.json({
     reviews: rows.map((r) => ({
       id: r.id, providerId: r.provider_id, businessName: r.business_name, userId: r.user_id,
       userName: r.user_name, rating: r.rating, comment: r.comment, status: r.status, createdAt: r.created_at,
     })),
+    pagination: { page: safePage, perPage, total, pages, hasPrev: safePage > 1, hasNext: safePage < pages },
   });
 }));
 

@@ -3,7 +3,7 @@
 const path = require('node:path');
 const express = require('express');
 
-const { db, DB_PATH } = require('./db');
+const { db, DB_PATH, rebuildSearchIndex } = require('./db');
 const { seed } = require('./seed');
 const { attachUser, pruneSessions } = require('./auth');
 const { publicUser } = require('./util');
@@ -66,6 +66,14 @@ function start() {
   const result = seed({ force: false });
   if (result.seeded) {
     console.log('[seed] database initialised with sample data', JSON.stringify(result.counts));
+  }
+  // Backfill the FTS index for databases created before search was indexed.
+  const missing = db.prepare(`
+    SELECT (SELECT COUNT(*) FROM jobs) - (SELECT COUNT(*) FROM jobs_fts) AS jobs,
+           (SELECT COUNT(*) FROM providers) - (SELECT COUNT(*) FROM providers_fts) AS providers`).get();
+  if (missing.jobs > 0 || missing.providers > 0) {
+    rebuildSearchIndex();
+    console.log('[search] rebuilt full text index', JSON.stringify(missing));
   }
   setInterval(pruneSessions, 1000 * 60 * 30).unref();
   app.listen(PORT, '0.0.0.0', () => {

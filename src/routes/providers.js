@@ -4,7 +4,7 @@ const express = require('express');
 const { db } = require('../db');
 const { requireAuth, requireRole } = require('../auth');
 const {
-  asyncHandler, httpError, logAudit, pageParams, pickEnum, toInt, toNum,
+  asyncHandler, httpError, logAudit, pageParams, ftsQuery, pickEnum, toInt, toNum,
 } = require('../util');
 
 const router = express.Router();
@@ -15,10 +15,12 @@ const AVAILABILITY_LABELS = { available: 'Available now', busy: 'Busy', unavaila
 const SELECT_PROVIDER = `
   SELECT p.*,
          c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
+         g.name AS group_name, g.slug AS group_slug, g.icon AS group_icon,
          l.name AS location_name, l.kind AS location_kind,
          u.name AS owner_name, u.email AS owner_email
   FROM providers p
   LEFT JOIN categories c ON c.id = p.category_id
+  LEFT JOIN category_groups g ON g.id = c.group_id
   LEFT JOIN locations l ON l.id = p.location_id
   LEFT JOIN users u ON u.id = p.owner_id`;
 
@@ -36,6 +38,7 @@ function serializeProvider(row, { full = false, savedIds = null } = {}) {
     businessName: row.business_name,
     tagline: row.tagline,
     category: row.category_id ? { id: row.category_id, name: row.category_name, slug: row.category_slug, icon: row.category_icon } : null,
+    group: row.group_slug ? { name: row.group_name, slug: row.group_slug, icon: row.group_icon } : null,
     location: row.location_id ? { id: row.location_id, name: row.location_name, kind: row.location_kind } : null,
     phone: row.phone,
     whatsapp: row.whatsapp,
@@ -85,6 +88,19 @@ function resolveLocationId(value) {
   return bySlug ? bySlug.id : null;
 }
 
+/** See jobs.resolveGroup: group slug -> the category ids it covers. */
+function resolveGroup(value, kind) {
+  if (value === undefined || value === null || value === '') return null;
+  const group = db.prepare('SELECT * FROM category_groups WHERE slug = ? OR id = ?')
+    .get(String(value), toInt(value) || -1);
+  if (!group) return null;
+  const rows = db.prepare(`
+    SELECT c.id FROM categories c
+    JOIN category_groups g ON g.id = c.group_id
+    WHERE c.kind = ? AND g.id = ?`).all(kind, group.id);
+  return { group, categoryIds: rows.map((r) => r.id) };
+}
+
 // ---------- Public browsing ----------
 
 router.get('/', asyncHandler((req, res) => {
@@ -93,13 +109,23 @@ router.get('/', asyncHandler((req, res) => {
   const params = [];
 
   const q = String(req.query.q || '').trim();
-  if (q) {
-    where.push('(p.business_name LIKE ? OR p.tagline LIKE ? OR p.description LIKE ? OR p.services LIKE ?)');
-    const like = `%${q}%`;
-    params.push(like, like, like, like);
+  const match = ftsQuery(q);
+  if (match) {
+    // Search the inverted index rather than scanning four columns with LIKE.
+    where.push('p.id IN (SELECT rowid FROM providers_fts WHERE providers_fts MATCH ?)');
+    params.push(match);
   }
   const categoryId = resolveCategoryId(req.query.category);
   if (categoryId) { where.push('p.category_id = ?'); params.push(categoryId); }
+  const groupFilter = resolveGroup(req.query.group, 'service');
+  if (groupFilter) {
+    if (!groupFilter.categoryIds.length) {
+      where.push('1 = 0');
+    } else {
+      where.push(`p.category_id IN (${groupFilter.categoryIds.map(() => '?').join(',')})`);
+      params.push(...groupFilter.categoryIds);
+    }
+  }
   const locationId = resolveLocationId(req.query.location);
   if (locationId) { where.push('p.location_id = ?'); params.push(locationId); }
   const availability = pickEnum(req.query.availability, AVAILABILITY, null);
@@ -120,17 +146,28 @@ router.get('/', asyncHandler((req, res) => {
     recent: 'p.created_at DESC',
     name: 'p.business_name ASC',
   };
-  const orderBy = sortMap[String(req.query.sort || 'rating')] || sortMap.rating;
+  const sortKey = String(req.query.sort || 'rating');
+  const orderBy = sortMap[sortKey] || sortMap.rating;
 
   const total = db.prepare(`SELECT COUNT(*) AS n FROM providers p ${whereSql}`).get(...params).n;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, pages);
+  const safeOffset = (safePage - 1) * perPage;
   const rows = db.prepare(
     `${SELECT_PROVIDER} ${whereSql} ORDER BY p.featured DESC, p.verified DESC, ${orderBy} LIMIT ? OFFSET ?`
-  ).all(...params, perPage, offset);
+  ).all(...params, perPage, safeOffset);
 
   const savedIds = savedProviderIds(req.user && req.user.id);
   res.json({
     providers: rows.map((r) => serializeProvider(r, { savedIds })),
-    pagination: { page, perPage, total, pages: Math.max(1, Math.ceil(total / perPage)) },
+    pagination: {
+      page: safePage, perPage, total, pages,
+      from: total ? safeOffset + 1 : 0,
+      to: Math.min(total, safeOffset + rows.length),
+      hasPrev: safePage > 1, hasNext: safePage < pages,
+    },
+    sort: sortKey,
+    group: groupFilter ? { id: groupFilter.group.id, slug: groupFilter.group.slug, name: groupFilter.group.name } : null,
     filters: { availability: AVAILABILITY.map((a) => ({ value: a, label: AVAILABILITY_LABELS[a] })) },
   });
 }));
@@ -331,4 +368,4 @@ function providerToBody(provider) {
   };
 }
 
-module.exports = { router, serializeProvider };
+module.exports = { router, serializeProvider, resolveGroup };

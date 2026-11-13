@@ -48,10 +48,34 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function pageParams(query) {
+const PER_PAGE_OPTIONS = [6, 9, 12, 24, 48, 96];
+const DEFAULT_PER_PAGE = 12;
+
+function pageParams(query, { defaultPerPage = DEFAULT_PER_PAGE } = {}) {
   const page = clamp(toInt(query.page, 1) || 1, 1, 10000);
-  const perPage = clamp(toInt(query.per_page, 12) || 12, 1, 100);
-  return { page, perPage, offset: (page - 1) * perPage };
+  const requested = toInt(query.per_page, defaultPerPage) || defaultPerPage;
+  // Snap to the nearest allowed size so the UI selector and the API agree, but
+  // still honour any value inside the hard bounds.
+  const perPage = PER_PAGE_OPTIONS.includes(requested)
+    ? requested
+    : clamp(requested, 1, 100);
+  return { page, perPage, offset: (page - 1) * perPage, perPageOptions: PER_PAGE_OPTIONS };
+}
+
+/**
+ * Turn free text typed into a search box into a safe FTS5 MATCH expression.
+ * Each whitespace-separated term becomes a prefix query and the terms are
+ * ANDed, so "bore hole" and "borehole" both behave sensibly. Returns null when
+ * there is nothing searchable, letting callers skip the join entirely.
+ */
+function ftsQuery(input) {
+  const terms = String(input || '')
+    .replace(/["'^*():]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length >= 2)
+    .slice(0, 8);
+  if (!terms.length) return null;
+  return terms.map((t) => `"${t}"*`).join(' AND ');
 }
 
 function pickEnum(value, allowed, fallback) {
@@ -129,8 +153,11 @@ module.exports = {
   toNum,
   clamp,
   pageParams,
+  ftsQuery,
   pickEnum,
   publicUser,
+  PER_PAGE_OPTIONS,
+  DEFAULT_PER_PAGE,
   JOB_TYPES,
   WORK_MODES,
   APPLICATION_STATUSES,

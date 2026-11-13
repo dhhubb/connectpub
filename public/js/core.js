@@ -319,15 +319,15 @@
             <div>
               <h4>Find work</h4>
               <a href="/jobs.html">Browse jobs</a>
-              <a href="/jobs.html?job_type=full_time">Full time roles</a>
+              <a href="/categories.html?scope=job">Job categories</a>
               <a href="/jobs.html?work_mode=remote">Remote work</a>
               <a href="/register.html">Create a job seeker profile</a>
             </div>
             <div>
               <h4>Find services</h4>
               <a href="/providers.html">Browse providers</a>
+              <a href="/categories.html?scope=service">Service categories</a>
               <a href="/providers.html?verified=1">Verified providers</a>
-              <a href="/providers.html?category=plumbing-boreholes">Boreholes & plumbing</a>
               <a href="/register.html">List your business</a>
             </div>
             <div>
@@ -380,11 +380,100 @@
     return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), wait); };
   }
 
+  /* ---------- pagination ---------- */
+  const PER_PAGE_OPTIONS = [6, 9, 12, 24, 48, 96];
+
+  /**
+   * Build the numbered page list with ellipses, e.g. 1 … 4 5 [6] 7 8 … 20.
+   * Always keeps the first and last page reachable so the control does not
+   * shift around as the user pages through a long result set.
+   */
+  function pageNumbers(page, pages, span = 2) {
+    const out = [];
+    const push = (v) => { if (out[out.length - 1] !== v) out.push(v); };
+    push(1);
+    const start = Math.max(2, page - span);
+    const end = Math.min(pages - 1, page + span);
+    if (start > 2) push('…');
+    for (let p = start; p <= end; p += 1) push(p);
+    if (end < pages - 1) push('…');
+    if (pages > 1) push(pages);
+    return out;
+  }
+
+  /**
+   * Render a portable pager into `host`.
+   *
+   * host            element or id
+   * pagination      { page, perPage, total, pages, from, to }
+   * options.onPage  called with the new page number
+   * options.onPerPage called with the new page size (enables the selector)
+   * options.unit    noun used in the summary, e.g. 'job' / 'provider'
+   */
+  function pager(host, pagination, { onPage, onPerPage, unit = 'result', showPerPage = true, showJump = true } = {}) {
+    const el = typeof host === 'string' ? document.getElementById(host) : host;
+    if (!el) return;
+    const { page, perPage, total, pages, from, to } = pagination;
+    if (!total) { el.innerHTML = ''; return; }
+
+    const summary = `<span class="pager-summary">Showing <b>${from}–${to}</b> of <b>${total}</b> ${escapeHtml(unit)}${total === 1 ? '' : 's'}</span>`;
+    if (pages <= 1 && !showPerPage) {
+      el.innerHTML = `<div class="pager-bar">${summary}</div>`;
+      return;
+    }
+
+    const numButtons = pageNumbers(page, pages).map((p) => (
+      p === '…'
+        ? '<span class="pager-gap" aria-hidden="true">…</span>'
+        : `<button type="button" class="pager-btn${p === page ? ' active' : ''}" data-page="${p}" ${p === page ? 'aria-current="page"' : ''}>${p}</button>`
+    )).join('');
+
+    const perPageSelect = showPerPage ? `
+      <label class="pager-size">Per page
+        <select data-per-page>${PER_PAGE_OPTIONS.map((n) => `<option value="${n}"${n === perPage ? ' selected' : ''}>${n}</option>`).join('')}</select>
+      </label>` : '';
+
+    const jump = showJump && pages > 7 ? `
+      <label class="pager-jump">Go to
+        <input type="number" min="1" max="${pages}" value="${page}" data-jump aria-label="Page number">
+      </label>` : '';
+
+    el.innerHTML = `
+      <div class="pager-bar">
+        ${summary}
+        <div class="pager-controls">
+          <button type="button" class="pager-btn" data-page="1" ${page === 1 ? 'disabled' : ''} aria-label="First page">«</button>
+          <button type="button" class="pager-btn" data-page="${page - 1}" ${page === 1 ? 'disabled' : ''} aria-label="Previous page">‹</button>
+          ${numButtons}
+          <button type="button" class="pager-btn" data-page="${page + 1}" ${page === pages ? 'disabled' : ''} aria-label="Next page">›</button>
+          <button type="button" class="pager-btn" data-page="${pages}" ${page === pages ? 'disabled' : ''} aria-label="Last page">»</button>
+        </div>
+        <div class="pager-tools">${perPageSelect}${jump}</div>
+      </div>`;
+
+    el.querySelectorAll('button[data-page]').forEach((b) => b.addEventListener('click', () => {
+      const next = Number(b.dataset.page);
+      if (!next || next === page || next < 1 || next > pages) return;
+      onPage && onPage(next);
+    }));
+    const sizeSelect = el.querySelector('[data-per-page]');
+    if (sizeSelect && onPerPage) sizeSelect.addEventListener('change', () => onPerPage(Number(sizeSelect.value)));
+    const jumpInput = el.querySelector('[data-jump]');
+    if (jumpInput && onPage) {
+      jumpInput.addEventListener('change', () => {
+        const target = Math.min(pages, Math.max(1, Number(jumpInput.value) || page));
+        if (target !== page) onPage(target);
+      });
+      jumpInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') jumpInput.blur(); });
+    }
+  }
+
   window.PC = {
     state, api, setSession, refreshUser, requireLogin, requireRole,
     escapeHtml, money, dateLabel, dateTimeLabel, timeAgo, daysLeft, initials, stars, statusBadge,
     toast, modal, closeModal, confirmDialog,
     formToObject, showErrors, busy, qs, setQuery, param, debounce, roleLabel,
+    pager, pageNumbers, PER_PAGE_OPTIONS,
   };
 
   document.addEventListener('DOMContentLoaded', () => {

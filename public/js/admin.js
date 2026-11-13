@@ -8,7 +8,7 @@
   } = PC;
 
   const root = document.getElementById('admin-root');
-  let meta = { categories: [], locations: [], jobCategories: [], serviceCategories: [] };
+  let meta = { categories: [], locations: [], groups: [], jobCategories: [], serviceCategories: [] };
   let activeView = PC.qs('view') || 'overview';
   let statsCache = null;
 
@@ -21,6 +21,7 @@
     ['requests', 'Service requests', '📥'],
     ['reviews', 'Reviews', '⭐'],
     ['categories', 'Categories', '🗂️'],
+    ['groups', 'Industry groups', '🏷️'],
     ['locations', 'Locations', '📍'],
     ['audit', 'Audit log', '🕓'],
     ['settings', 'Settings', '⚙️'],
@@ -68,7 +69,7 @@
       const map = {
         overview: renderOverview, jobs: renderJobs, providers: renderProviders, users: renderUsers,
         applications: renderApplications, requests: renderRequests, reviews: renderReviews,
-        categories: renderCategories, locations: renderLocations, audit: renderAudit, settings: renderSettings,
+        categories: renderCategories, groups: renderGroups, locations: renderLocations, audit: renderAudit, settings: renderSettings,
       };
       await (map[activeView] || renderOverview)(m);
     } catch (e) {
@@ -672,9 +673,10 @@
     const job = categories.filter((c) => c.kind === 'job');
     const service = categories.filter((c) => c.kind === 'service');
     const table = (rows) => `<div class="table-wrap"><table class="data">
-      <thead><tr><th>Category</th><th>Description</th><th>Listings</th><th></th></tr></thead>
+      <thead><tr><th>Category</th><th>Industry</th><th>Description</th><th>Listings</th><th></th></tr></thead>
       <tbody>${rows.map((c) => `
         <tr><td><b>${escapeHtml(c.icon || '')} ${escapeHtml(c.name)}</b><div class="tiny muted mono">${escapeHtml(c.slug)}</div></td>
+          <td class="small">${c.group ? `${escapeHtml(c.group.icon || '')} ${escapeHtml(c.group.name)}` : '<span class="badge badge-amber">Unassigned</span>'}</td>
           <td class="small muted">${escapeHtml(c.description || '—')}</td>
           <td class="small">${c.kind === 'job' ? c.jobCount + ' jobs' : c.providerCount + ' providers'}</td>
           <td class="actions">
@@ -705,6 +707,8 @@
 
   function openCategoryForm(cat) {
     const c = cat || {};
+    const groupOptions = ['<option value="">— Unassigned —</option>']
+      .concat(meta.groups.map((g) => `<option value="${g.id}" ${c.groupId === g.id ? 'selected' : ''}>${escapeHtml(g.icon || '')} ${escapeHtml(g.name)}</option>`)).join('');
     modal({
       title: c.id ? 'Edit category' : 'Add category',
       body: `<form id="cat-form">
@@ -712,6 +716,7 @@
           <label class="field"><span class="lbl">Name <span class="req">*</span></span><input type="text" name="name" value="${escapeHtml(c.name || '')}"></label>
           <label class="field"><span class="lbl">Type</span><select name="kind">${[['job', 'Job category'], ['service', 'Service category']].map(([v, l]) => `<option value="${v}" ${c.kind === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         </div>
+        <label class="field"><span class="lbl">Industry group</span><select name="group_id">${groupOptions}</select></label>
         <label class="field"><span class="lbl">Icon (emoji)</span><input type="text" name="icon" value="${escapeHtml(c.icon || '📌')}" maxlength="4"></label>
         <label class="field"><span class="lbl">Description</span><textarea name="description" rows="3">${escapeHtml(c.description || '')}</textarea></label>
         <div class="form-actions"><button class="btn" type="submit" id="cat-save">${c.id ? 'Save changes' : 'Create category'}</button><button class="btn btn-ghost" type="button" data-close>Cancel</button></div>
@@ -726,6 +731,75 @@
         if (c.id) await api('/admin/categories/' + c.id, { method: 'PATCH', body: payload });
         else await api('/admin/categories', { method: 'POST', body: payload });
         closeModal(); toast('Category saved'); render();
+      } catch (err) {
+        busy(btn, false);
+        if (err.data && err.data.errors) showErrors(e.target, err.data.errors);
+        else toast(err.message, 'err');
+      }
+    });
+  }
+
+  /* ---------- industry groups ---------- */
+  async function renderGroups(m) {
+    const { groups } = await api('/admin/groups');
+    m.innerHTML = `
+      <div class="page-head"><div><h2>Industry groups</h2><p class="sub">Groupings that organise categories into browsable industries on the public site.</p></div>
+        <button class="btn" id="new-group">+ Add group</button></div>
+      <div class="panel"><div class="table-wrap"><table class="data">
+        <thead><tr><th>Group</th><th>Scope</th><th>Categories</th><th>Listings</th><th></th></tr></thead>
+        <tbody>${groups.map((g) => `
+          <tr><td><b>${escapeHtml(g.icon || '🏷️')} ${escapeHtml(g.name)}</b><div class="tiny muted mono">${escapeHtml(g.slug)}</div>
+                <div class="tiny muted">${escapeHtml(g.description || '')}</div></td>
+            <td class="small"><span class="badge badge-plain">${escapeHtml(scopeLabel(g.scope))}</span></td>
+            <td class="small">${g.categoryCount}</td>
+            <td class="small">${g.jobCount} jobs · ${g.providerCount} providers</td>
+            <td class="actions">
+              <button class="btn btn-xs btn-ghost" data-edit-group="${g.id}">Edit</button>
+              <button class="btn btn-xs btn-ghost" data-del-group="${g.id}">Delete</button>
+            </td></tr>`).join('')}</tbody>
+      </table></div></div>`;
+
+    const all = groups;
+    document.getElementById('new-group').addEventListener('click', () => openGroupForm(null));
+    m.addEventListener('click', async (e) => {
+      const edit = e.target.closest('[data-edit-group]');
+      if (edit) return openGroupForm(all.find((g) => g.id === Number(edit.dataset.editGroup)));
+      const del = e.target.closest('[data-del-group]');
+      if (del) {
+        if (!(await confirmDialog('Delete this industry group?', { confirmLabel: 'Delete', danger: true }))) return;
+        try { await api('/admin/groups/' + del.dataset.delGroup, { method: 'DELETE' }); toast('Group deleted'); refreshMeta(); render(); }
+        catch (err) { toast(err.message, 'err'); }
+      }
+    });
+  }
+
+  function scopeLabel(scope) {
+    return { job: 'Jobs only', service: 'Services only', both: 'Jobs & services' }[scope] || scope;
+  }
+
+  function openGroupForm(group) {
+    const g = group || {};
+    modal({
+      title: g.id ? 'Edit industry group' : 'Add industry group',
+      body: `<form id="group-form">
+        <label class="field"><span class="lbl">Name <span class="req">*</span></span><input type="text" name="name" value="${escapeHtml(g.name || '')}"></label>
+        <div class="grid-2">
+          <label class="field"><span class="lbl">Scope</span><select name="scope">${[['both', 'Jobs & services'], ['job', 'Jobs only'], ['service', 'Services only']].map(([v, l]) => `<option value="${v}" ${g.scope === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label class="field"><span class="lbl">Icon (emoji)</span><input type="text" name="icon" value="${escapeHtml(g.icon || '🏷️')}" maxlength="4"></label>
+        </div>
+        <label class="field"><span class="lbl">Description</span><textarea name="description" rows="3">${escapeHtml(g.description || '')}</textarea></label>
+        <div class="form-actions"><button class="btn" type="submit" id="group-save">${g.id ? 'Save changes' : 'Create group'}</button><button class="btn btn-ghost" type="button" data-close>Cancel</button></div>
+      </form>`,
+    });
+    document.getElementById('group-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('group-save');
+      busy(btn, true, 'Saving…');
+      try {
+        const payload = formToObject(e.target);
+        if (g.id) await api('/admin/groups/' + g.id, { method: 'PATCH', body: payload });
+        else await api('/admin/groups', { method: 'POST', body: payload });
+        closeModal(); toast('Group saved'); refreshMeta(); render();
       } catch (err) {
         busy(btn, false);
         if (err.data && err.data.errors) showErrors(e.target, err.data.errors);
@@ -891,12 +965,19 @@
 
   async function loadMeta() {
     try {
-      const [cats, locs] = await Promise.all([api('/admin/categories'), api('/admin/locations')]);
+      const [cats, locs, groups] = await Promise.all([api('/admin/categories'), api('/admin/locations'), api('/admin/groups')]);
       meta.categories = cats.categories;
       meta.locations = locs.locations;
+      meta.groups = groups.groups;
       meta.jobCategories = cats.categories.filter((c) => c.kind === 'job');
       meta.serviceCategories = cats.categories.filter((c) => c.kind === 'service');
     } catch { /* ignore */ }
+  }
+
+  function refreshMeta() {
+    meta.categories = [];
+    meta.groups = meta.groups || [];
+    return loadMeta();
   }
 
   async function boot() {

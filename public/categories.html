@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Categories · Plumtree Connect</title>
+<meta name="description" content="Browse every job and service category in Plumtree and Matabeleland South, grouped by industry: real estate, agriculture, transport and logistics, retail and wholesale, professional services and more.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div data-header></div>
+
+<div style="background:linear-gradient(140deg,var(--green-900),var(--green-800));color:#fff">
+  <div class="container" style="padding:1.8rem 1.15rem">
+    <p class="eyebrow" style="color:#f0b878">Browse by category</p>
+    <h1 style="color:#fff;margin-bottom:.3rem">Every trade, every trade route</h1>
+    <p class="mb0" style="color:rgba(255,255,255,.85)">Jobs and services grouped into the industries that keep Plumtree and Matabeleland South moving.</p>
+  </div>
+</div>
+
+<main class="container" style="padding:1.6rem 1.15rem 2.6rem">
+  <div class="panel" style="margin-bottom:1.2rem">
+    <div class="panel-body row row-wrap" style="gap:.7rem">
+      <div class="grow">
+        <input type="search" id="cat-search" placeholder="Search categories — try “solar”, “transport”, “retail”…">
+      </div>
+      <div class="chips" id="scope-tabs">
+        <button type="button" class="chip active" data-scope="both">All</button>
+        <button type="button" class="chip" data-scope="job">Jobs</button>
+        <button type="button" class="chip" data-scope="service">Services</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="group-grid" class="grid-cards-3">
+    <div class="skeleton" style="height:150px"></div>
+    <div class="skeleton" style="height:150px"></div>
+    <div class="skeleton" style="height:150px"></div>
+  </div>
+  <div class="empty" id="group-empty" hidden><span class="icon">🔍</span><b>No categories matched</b><p>Try a different word, or clear the search.</p></div>
+</main>
+
+<div data-footer></div>
+<script src="/js/core.js"></script>
+<script src="/js/categories.js"></script>
+</body>
+</html>

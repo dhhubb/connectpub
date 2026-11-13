@@ -104,7 +104,7 @@
     try {
       const { categories } = await api('/meta/categories?kind=' + kind);
       document.getElementById('cat-grid').innerHTML = categories.map((c) => `
-        <a class="card" href="/${kind === 'job' ? 'jobs' : 'providers'}.html?category=${encodeURIComponent(c.slug)}" style="text-decoration:none">
+        <a class="card cat-card" href="/${kind === 'job' ? 'jobs' : 'providers'}.html?category=${encodeURIComponent(c.slug)}" style="text-decoration:none">
           <div class="row">
             <div class="thumb">${escapeHtml(c.icon)}</div>
             <div class="grow">
@@ -113,6 +113,7 @@
             </div>
           </div>
           <p class="small muted" style="margin:.6rem 0 0">${escapeHtml(c.description || '')}</p>
+          ${c.group ? `<div class="cat-card-foot"><span class="tag">${escapeHtml(c.group.icon || '📁')} ${escapeHtml(c.group.name)}</span><span class="cat-go">${kind === 'job' ? 'View jobs' : 'View providers'} →</span></div>` : ''}
         </a>`).join('');
     } catch { /* ignore */ }
   }

@@ -1,52 +1,19 @@
 'use strict';
 
-const { db } = require('./db');
+const { db, rebuildSearchIndex, syncCatalogue } = require('./db');
 const { hashPassword } = require('./auth');
 const { slugify } = require('./util');
+const { LOCATIONS, categoriesFor } = require('./catalogue');
 
-const LOCATIONS = [
-  ['Plumtree Town', 'town', 'Central business district, border post and main market area'],
-  ['Dingumuzi', 'ward', 'High-density suburb south east of the town centre'],
-  ['Empandeni', 'ward', 'Rural ward along the Bulilima road'],
-  ['Tshitshi', 'ward', 'Rural ward with strong cattle farming activity'],
-  ['Matjinge', 'ward', 'Farming ward near the Botswana border'],
-  ['Marula', 'ward', 'Mining and farming ward'],
-  ['Ndiweni', 'ward', 'Residential ward close to the bus terminus'],
-  ['Bhango', 'village', 'Village community with a growing market centre'],
-  ['Mangwe', 'ward', 'District ward with a rural service centre'],
-  ['Bulilima', 'ward', 'Border ward with cross-border trading'],
-  ['Figtree', 'village', 'Railway village 25km east of Plumtree'],
-  ['Gwanda', 'town', 'Provincial capital of Matabeleland South'],
-  ['Esigodini', 'town', 'Growth point on the Bulawayo road'],
-  ['Filabusi', 'town', 'Small town in Insiza district'],
-  ['Beitbridge', 'town', 'Busy border town and trade corridor'],
-];
-
-const JOB_CATEGORIES = [
-  ['Agriculture & Farming', '🌾', 'Field work, livestock, irrigation and produce handling'],
-  ['Construction & Trades', '🧱', 'Bricklaying, plumbing, carpentry, painting and general building'],
-  ['Education & Training', '📚', 'Teaching, tutoring, ECD and vocational instruction'],
-  ['Health & Care', '🩺', 'Nursing, care work, pharmacy and community health'],
-  ['Transport & Logistics', '🚚', 'Driving, cross-border haulage, loading and courier work'],
-  ['Retail & Sales', '🛒', 'Shop assistants, tills, merchandising and sales agents'],
-  ['Hospitality & Catering', '🍽️', 'Lodges, kitchens, housekeeping and event catering'],
-  ['ICT & Admin', '💻', 'Clerical work, data capture, IT support and reception'],
-  ['Security Services', '🛡️', 'Guarding, gate control and patrol work'],
-  ['Domestic & General Work', '🧹', 'Housekeeping, gardening and general hands'],
-];
-
-const SERVICE_CATEGORIES = [
-  ['Building & Renovation', '🏗️', 'Builders, plasterers, tilers and renovations'],
-  ['Plumbing & Boreholes', '🚰', 'Pipe fitting, borehole drilling and pump repair'],
-  ['Electrical & Solar', '💡', 'Wiring, solar installation and appliance repair'],
-  ['Welding & Metalwork', '🔧', 'Gates, window frames, burglar bars and repairs'],
-  ['Transport & Moving', '🚛', 'Truck hire, removals and cross-border errands'],
-  ['Cleaning & Laundry', '🧼', 'Home and office cleaning, laundry services'],
-  ['Events & Catering', '🎉', 'Tents, décor, catering and sound hire'],
-  ['Beauty & Wellness', '💅', 'Hair, nails, make-up and grooming'],
-  ['Agriculture Services', '🐄', 'Livestock handling, dip tank and irrigation services'],
-  ['Home & Garden', '🌳', 'Gardening, tree felling, pest control and fencing'],
-];
+// Category ids are resolved from src/catalogue.js so the seeded listings and
+// the taxonomy can never drift apart.
+function categoryIdMap() {
+  const map = {};
+  for (const kind of ['job', 'service']) {
+    for (const c of categoriesFor(kind)) map[c.name] = db.prepare('SELECT id FROM categories WHERE slug = ?').get(c.slug).id;
+  }
+  return map;
+}
 
 const USERS = [
   ['System Administrator', 'admin@plumtreeconnect.co.zw', 'admin1234', 'admin', 'Plumtree Town', 'Platform administrator for Plumtree Connect.'],
@@ -76,30 +43,25 @@ function seed({ force = false } = {}) {
   if (existing > 0 && !force) return { seeded: false, users: existing };
 
   db.exec('PRAGMA foreign_keys = OFF;');
-  for (const table of ['reviews', 'saved_items', 'applications', 'service_requests', 'jobs', 'providers', 'audit_log', 'locations', 'categories', 'users', 'settings']) {
+  for (const table of ['jobs_fts', 'providers_fts', 'reviews', 'saved_items', 'applications', 'service_requests', 'jobs', 'providers', 'audit_log', 'locations', 'categories', 'users', 'settings']) {
     db.exec(`DELETE FROM ${table};`);
   }
   db.exec("DELETE FROM sqlite_sequence WHERE name IN ('users','categories','locations','jobs','providers','applications','service_requests','reviews','saved_items','audit_log');");
   db.exec('PRAGMA foreign_keys = ON;');
 
-  const insertLocation = db.prepare('INSERT INTO locations (name, slug, kind, notes) VALUES (?, ?, ?, ?)');
+  // The wipe above cleared the taxonomy tables, so repopulate them from the
+  // catalogue before anything tries to resolve a category id.
+  syncCatalogue();
+  db.exec("DELETE FROM sqlite_sequence WHERE name IN ('categories','locations');");
+
   const locationIds = {};
-  for (const [name, kind, notes] of LOCATIONS) {
-    const info = insertLocation.run(name, slugify(name), kind, notes);
-    locationIds[name] = Number(info.lastInsertRowid);
+  for (const [name] of LOCATIONS) {
+    locationIds[name] = db.prepare('SELECT id FROM locations WHERE slug = ?').get(slugify(name)).id;
   }
 
-  const insertCategory = db.prepare('INSERT INTO categories (name, slug, kind, icon, description) VALUES (?, ?, ?, ?, ?)');
-  const jobCategoryIds = {};
-  for (const [name, icon, description] of JOB_CATEGORIES) {
-    const info = insertCategory.run(name, slugify(name), 'job', icon, description);
-    jobCategoryIds[name] = Number(info.lastInsertRowid);
-  }
-  const serviceCategoryIds = {};
-  for (const [name, icon, description] of SERVICE_CATEGORIES) {
-    const info = insertCategory.run(name, slugify(name), 'service', icon, description);
-    serviceCategoryIds[name] = Number(info.lastInsertRowid);
-  }
+  const categoryIds = categoryIdMap();
+  const jobCategoryIds = categoryIds;
+  const serviceCategoryIds = categoryIds;
 
   const insertUser = db.prepare(
     `INSERT INTO users (name, email, phone, password_hash, role, status, ward, bio)
@@ -176,6 +138,34 @@ function seed({ force = false } = {}) {
       'Maintain stock cards, run monthly counts and reconcile deliveries against invoices.',
       'O level with Maths\nSpreadsheet skills\nAttention to detail',
       'full_time', 'on_site', 240, 310, 1, '2026-12-14', 'admin@kalangahardware.co.zw', '+263771234004', 'rejected', 0, 88, '-10 days'],
+    ['admin@kalangahardware.co.zw', 'Wholesale & Distribution', 'Plumtree Town', 'Warehouse Stock Controller', 'Kalanga Hardware & Builders',
+      'Own stock counts across the yard and warehouse, reconcile deliveries against invoices and keep the bin card system accurate for cement, timber and roofing sheets.',
+      'Stock control experience in a warehouse or yard\nComfortable with stock cards and simple spreadsheets\nForklift or loader experience an advantage',
+      'full_time', 'on_site', 210, 290, 1, '2026-12-14', 'admin@kalangahardware.co.zw', '+263771234004', 'approved', 0, 176, '-5 days'],
+    ['admin@kalangahardware.co.zw', 'Finance & Accounting', 'Plumtree Town', 'Bookkeeper', 'Kalanga Hardware & Builders',
+      'Maintain the day book, reconcile the till and bank statements, prepare VAT schedules and assist the accountant with monthly returns.',
+      'Accounting qualification or two years bookkeeping experience\nWorking knowledge of Pastel or a similar package\nAttention to detail with figures',
+      'full_time', 'on_site', 300, 420, 1, '2026-12-22', 'admin@kalangahardware.co.zw', '+263771234004', 'approved', 0, 214, '-4 days'],
+    ['jobs@borderlodge.co.zw', 'Real Estate & Property', 'Plumtree Town', 'Property Caretaker', 'Border Lodge & Conference',
+      'Look after two rental blocks in Plumtree town: take meter readings, arrange repairs, keep the grounds tidy and report monthly to the property owner.',
+      'Practical maintenance skills\nAble to keep records of repairs and readings\nTrustworthy and able to work unsupervised',
+      'full_time', 'on_site', 190, 260, 1, '2026-12-09', 'jobs@borderlodge.co.zw', '+263771234002', 'approved', 0, 158, '-6 days'],
+    ['recruitment@mangwerdc.co.zw', 'Finance & Accounting', 'Mangwe', 'Revenue Clerk', 'Mangwe Rural District Council',
+      'Receive and receipt council revenue at the district office, reconcile daily collections and prepare the banking schedule for the finance officer.',
+      'O level including Maths and English\nCash handling and receipting experience\nComputer literacy for the revenue system',
+      'full_time', 'on_site', 240, 310, 2, '2026-12-16', 'recruitment@mangwerdc.co.zw', '+263771234003', 'approved', 0, 187, '-3 days'],
+    ['jobs@borderlodge.co.zw', 'Events & Media', 'Plumtree Town', 'Events Coordinator', 'Border Lodge & Conference',
+      'Coordinate conferences, weddings and community events: take bookings, arrange seating and catering, brief the sound team and be present on the day.',
+      'Events or hospitality experience\nStrong organisational skills\nAble to work evenings and weekends',
+      'contract', 'on_site', 260, 360, 1, '2026-12-19', 'jobs@borderlodge.co.zw', '+263771234002', 'approved', 1, 241, '-2 days'],
+    ['clinic@empandeni.co.zw', 'Manufacturing & Production', 'Plumtree Town', 'Grain Mill Operator', 'Empandeni Mission Clinic',
+      'Operate the community maize mill, grade incoming grain, keep milling records and maintain the mill between services.',
+      'Experience operating a hammer mill or similar plant\nBasic mechanical maintenance\nAble to keep production records',
+      'full_time', 'on_site', 170, 230, 1, '2026-12-11', 'clinic@empandeni.co.zw', '+263771234005', 'approved', 0, 132, '-4 days'],
+    ['hr@plumtreeagro.co.zw', 'Energy & Utilities', 'Matjinge', 'Solar Pump Technician', 'Plumtree Agro Estates',
+      'Service the estate solar pumping array: check panels and controllers, replace worn pumps, log water output and plan preventative maintenance.',
+      'Electrical or solar technician experience\nComfortable working on borehole pump sets\nAble to read a multimeter and fault find',
+      'full_time', 'on_site', 320, 450, 1, '2026-12-24', 'hr@plumtreeagro.co.zw', '+263771234001', 'approved', 1, 203, '-2 days'],
   ];
 
   for (const j of jobs) {
@@ -259,6 +249,41 @@ function seed({ force = false } = {}) {
       'Laundry service collecting from Plumtree town, Dingumuzi and Ndiweni with 48 hour turnaround. Bulk pricing for lodges, clinics and hostels.',
       'Household laundry and ironing\nBulk linen for lodges and clinics\nDuvet and blanket washing\n48 hour turnaround\nFree collection in town',
       '+263772345113', '+263772345113', 'tshabalalalaundry@example.com', '7 Kingfisher Road, Plumtree Town', 10, 3, 'available', 'pending', 0, 0, 35, '-1 days'],
+    ['hire@kalangatransport.co.zw', 'Real Estate Services', 'Plumtree Town', 'Plumtree Property Agents',
+      'Sales, letting and property management',
+      'Registered estate agency handling residential and commercial sales, letting and full property management across Plumtree and the border corridor. We handle viewings, tenant screening and monthly statements.',
+      'Residential and commercial sales\nLetting and tenant screening\nProperty management and rent collection\nValuations for sale and insurance\nLease drafting and renewal',
+      '+263772345114', '+263772345114', 'sales@plumtreeproperty.co.zw', '23 Fife Street, Plumtree Town', 0, 9, 'available', 'approved', 1, 1, 612, '-140 days'],
+    ['admin@kalangahardware.co.zw', 'Retail & Wholesale', 'Plumtree Town', 'Kalanga Wholesale Depot',
+      'Bulk building materials and trade counter',
+      'Wholesale supply of cement, timber, roofing sheets, plumbing fittings and electrical sundries. Trade pricing for contractors with delivery across Bulilima, Mangwe and Tshitshi.',
+      'Bulk cement and aggregates\nTimber and roofing sheets\nPlumbing and electrical sundries\nContractor trade accounts\nDelivery to surrounding wards',
+      '+263772345115', '+263772345115', 'wholesale@kalangahardware.co.zw', 'Kalanga Hardware Yard, Plumtree Town', 0, 12, 'available', 'approved', 0, 0, 489, '-110 days'],
+    ['dingumuzielectrical@example.com', 'ICT & Repairs', 'Dingumuzi', 'Dingumuzi Tech Repairs',
+      'Computers, phones and appliances',
+      'Repair bench for laptops, phones, printers and household appliances. We also do CCTV installation, network cabling and data recovery for small businesses.',
+      'Laptop and desktop repair\nCellphone screen and battery replacement\nPrinter servicing and refills\nCCTV and network installation\nData backup and recovery',
+      '+263772345116', '+263772345116', 'repairs@dingumuzitech.co.zw', 'Dingumuzi Shopping Centre', 15, 6, 'available', 'approved', 0, 0, 401, '-95 days'],
+    ['moyowelding@example.com', 'Carpentry & Furniture', 'Ndiweni', 'Ndiweni Carpentry Works',
+      'Fitted cupboards, doors and furniture',
+      'Carpentry workshop producing fitted kitchen cupboards, wardrobes, doors, window frames and office furniture. We measure on site and deliver within the district.',
+      'Fitted kitchens and wardrobes\nDoors and window frames\nRoof trusses and timber treatment\nOffice and school furniture\nOn site repairs',
+      '+263772345117', '+263772345117', 'carpentry@ndiweniworks.co.zw', 'Ndiweni Industrial Site, Plumtree', 45, 10, 'available', 'approved', 0, 0, 377, '-85 days'],
+    ['shine@plumtreeshine.co.zw', 'Business Services', 'Plumtree Town', 'Plumtree Business Services',
+      'Accounting, printing and business support',
+      'Bookkeeping, tax registration, company registration support, printing, binding and stationery for small businesses and community organisations.',
+      'Bookkeeping and VAT returns\nCompany and NSSA registration support\nPrinting, binding and laminating\nBusiness plan writing\nTender document preparation',
+      '+263772345118', '+263772345118', 'info@plumtreebiz.co.zw', '9 Lobengula Street, Plumtree Town', 20, 8, 'available', 'approved', 0, 1, 528, '-75 days'],
+    ['bhangoevents@example.com', 'Security & Alarms', 'Plumtree Town', 'Border Security & Alarms',
+      'Guarding, alarms and access control',
+      'Manned guarding for businesses and residential stands plus alarm and camera installation. We run a 24 hour control room with a response vehicle covering Plumtree town.',
+      'Manned guarding and patrols\nAlarm system installation\nCCTV and access control\nElectric fencing\n24 hour control room response',
+      '+263772345119', '+263772345119', 'operations@bordersecurity.co.zw', 'Plumtree Town Industrial Area', 35, 13, 'available', 'approved', 0, 0, 445, '-70 days'],
+    ['clinic@empandeni.co.zw', 'Health & Wellness Services', 'Empandeni', 'Empandeni Home Care',
+      'Home nursing and mobile health services',
+      'Home based care for elderly and recovering patients: wound dressing, medication support, mobility assistance and mobile blood pressure and sugar checks.',
+      'Home nursing and wound care\nElderly and post operative care\nMedication reminders and support\nMobile vitals checks\nReferral to the mission clinic',
+      '+263772345120', '+263772345120', 'homecare@empandeni.co.zw', 'Empandeni Mission Clinic, Plumtree', 25, 7, 'available', 'approved', 1, 0, 356, '-55 days'],
   ];
 
   const providerIds = [];
@@ -353,7 +378,12 @@ function seed({ force = false } = {}) {
     applications: db.prepare('SELECT COUNT(*) AS n FROM applications').get().n,
     service_requests: db.prepare('SELECT COUNT(*) AS n FROM service_requests').get().n,
     reviews: db.prepare('SELECT COUNT(*) AS n FROM reviews').get().n,
+    groups: db.prepare('SELECT COUNT(*) AS n FROM category_groups').get().n,
+    categories: db.prepare('SELECT COUNT(*) AS n FROM categories').get().n,
   };
+  // The bulk inserts above bypassed nothing, but rebuilding guarantees the
+  // search index matches the rows exactly after a reseed.
+  rebuildSearchIndex();
   return { seeded: true, counts };
 }
 

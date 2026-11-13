@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Category · Plumtree Connect</title>
+<meta name="description" content="Browse jobs and service providers in one industry category in Plumtree and Matabeleland South.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div data-header></div>
+
+<div id="cat-hero" style="background:linear-gradient(140deg,var(--green-900),var(--green-800));color:#fff">
+  <div class="container" style="padding:1.8rem 1.15rem">
+    <p class="eyebrow" style="color:#f0b878"><a href="/categories.html" style="color:#f0b878">All categories</a></p>
+    <h1 style="color:#fff;margin-bottom:.3rem"><span id="cat-icon">📁</span> <span id="cat-name">Loading…</span></h1>
+    <p class="mb0" style="color:rgba(255,255,255,.85)" id="cat-desc"></p>
+    <div class="chips" id="cat-stats" style="margin-top:.9rem"></div>
+  </div>
+</div>
+
+<main class="container" style="padding:1.6rem 1.15rem 2.6rem">
+  <nav class="tabs" id="kind-tabs" style="margin-bottom:1rem">
+    <button class="tab active" data-kind="job">Jobs</button>
+    <button class="tab" data-kind="service">Service providers</button>
+  </nav>
+
+  <div id="subcats" class="chips" style="margin-bottom:1rem"></div>
+
+  <div class="panel" style="margin-bottom:1rem">
+    <div class="panel-body row row-wrap" style="gap:.7rem">
+      <div class="grow">
+        <input type="search" id="cat-quick-search" placeholder="Search within this category…">
+      </div>
+      <label class="row small" style="gap:.35rem;white-space:nowrap">
+        <span class="muted">Sort</span>
+        <select id="cat-sort" style="width:auto">
+          <option value="recent">Newest first</option>
+          <option value="salary">Highest salary</option>
+          <option value="deadline">Closing soon</option>
+          <option value="popular">Most viewed</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="spread" style="margin-bottom:.9rem">
+    <p class="mb0 small muted" id="cat-result-count">Loading…</p>
+    <div class="chips" id="cat-active-chips"></div>
+  </div>
+
+  <div id="cat-list" class="grid-cards"><div class="spinner"></div></div>
+  <div id="cat-pager"></div>
+</main>
+
+<div data-footer></div>
+<script src="/js/core.js"></script>
+<script src="/js/category.js"></script>
+</body>
+</html>

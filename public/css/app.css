@@ -329,11 +329,40 @@ table.data tr.row-flag td { background: var(--warn-bg); }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* ---------- Pagination ---------- */
-.pager { display: flex; gap: .35rem; justify-content: center; align-items: center; margin-top: 1.4rem; flex-wrap: wrap; }
+.pager { margin-top: 1.4rem; }
+.pager-bar {
+  display: flex; gap: .7rem; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; padding: .7rem .85rem; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm);
+}
+.pager-summary { font-size: .86rem; color: var(--ink-500); }
+.pager-summary b { color: var(--ink-900); }
+.pager-controls { display: flex; gap: .28rem; align-items: center; flex-wrap: wrap; justify-content: center; }
+.pager-btn {
+  min-width: 38px; height: 38px; padding: .3rem .55rem; border-radius: 8px;
+  border: 1px solid var(--line); background: #fff; font: inherit; font-weight: 600; cursor: pointer;
+  color: var(--ink-700); line-height: 1;
+}
+.pager-btn:hover:not(:disabled) { border-color: var(--green-600); color: var(--green-800); background: var(--green-50); }
+.pager-btn.active { background: var(--green-700); border-color: var(--green-700); color: #fff; }
+.pager-btn:disabled { opacity: .45; cursor: not-allowed; }
+.pager-gap { min-width: 26px; text-align: center; color: var(--ink-300); font-weight: 700; }
+.pager-tools { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; }
+.pager-size, .pager-jump { display: flex; gap: .35rem; align-items: center; font-size: .8rem; color: var(--ink-500); white-space: nowrap; }
+.pager-size select, .pager-jump input { padding: .32rem .5rem; border: 1px solid var(--line); border-radius: 7px; font: inherit; background: #fff; }
+.pager-jump input { width: 68px; }
 .pager button { min-width: 38px; padding: .4rem .6rem; border-radius: 8px; border: 1px solid var(--line); background: #fff; font: inherit; font-weight: 600; cursor: pointer; }
 .pager button:hover:not(:disabled) { border-color: var(--green-600); color: var(--green-800); }
 .pager button.active { background: var(--green-700); border-color: var(--green-700); color: #fff; }
 .pager button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- Category cards ---------- */
+.cat-card { display: flex; flex-direction: column; text-decoration: none; transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+.cat-card:hover { text-decoration: none; transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--green-600); }
+.cat-card .thumb { font-size: 1.5rem; }
+.cat-card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: .7rem; }
+.cat-go { font-size: .82rem; font-weight: 700; color: var(--green-700); }
+.cat-card:hover .cat-go { color: var(--green-800); }
 
 /* ---------- Dashboard shell ---------- */
 .app-shell { display: grid; grid-template-columns: 250px 1fr; min-height: calc(100vh - 66px); width: 100%; max-width: 100%; }

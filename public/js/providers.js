@@ -1,10 +1,11 @@
 /* Service providers browsing page */
 (function () {
   'use strict';
-  const { api, escapeHtml, money, stars, toast, qs, setQuery, debounce } = window.PC;
+  const { api, escapeHtml, money, stars, toast, qs, setQuery, debounce, pager } = window.PC;
 
   const filters = {
     q: qs('q') || '',
+    group: qs('group') || '',
     category: qs('category') || '',
     location: qs('location') || '',
     availability: qs('availability') || '',
@@ -12,9 +13,10 @@
     verified: qs('verified') || '',
     sort: qs('sort') || 'rating',
     page: Number(qs('page') || 1),
+    perPage: Number(qs('per_page') || 9),
   };
 
-  const meta = { categories: [], locations: [], availability: [] };
+  const meta = { groups: [], categories: [], locations: [], availability: [] };
 
   function card(p) {
     return `
@@ -47,9 +49,19 @@
   }
 
   function renderFilterLists() {
+    const groupHost = document.getElementById('f-groups');
+    if (groupHost) {
+      groupHost.innerHTML =
+        `<button type="button" data-group="" class="${!filters.group ? 'active' : ''}">All industries</button>` +
+        meta.groups.map((g) => `<button type="button" data-group="${escapeHtml(g.slug)}" class="${filters.group === g.slug ? 'active' : ''}">
+          <span>${escapeHtml(g.icon)} ${escapeHtml(g.name)}</span><span class="n">${g.providerCount}</span></button>`).join('');
+    }
+
+    // Once an industry is picked, only its categories are worth showing.
+    const visibleCats = filters.group ? meta.categories.filter((c) => c.group && c.group.slug === filters.group) : meta.categories;
     document.getElementById('f-categories').innerHTML =
       `<button type="button" data-cat="" class="${!filters.category ? 'active' : ''}">All categories</button>` +
-      meta.categories.map((c) => `<button type="button" data-cat="${escapeHtml(c.slug)}" class="${filters.category === c.slug ? 'active' : ''}">
+      visibleCats.map((c) => `<button type="button" data-cat="${escapeHtml(c.slug)}" class="${filters.category === c.slug ? 'active' : ''}">
         <span>${escapeHtml(c.icon)} ${escapeHtml(c.name)}</span><span class="n">${c.providerCount}</span></button>`).join('');
 
     document.getElementById('f-locations').innerHTML =
@@ -65,6 +77,7 @@
   function renderActiveChips() {
     const chips = [];
     if (filters.q) chips.push(['q', `“${filters.q}”`]);
+    if (filters.group) chips.push(['group', meta.groups.find((g) => g.slug === filters.group)?.name || filters.group]);
     if (filters.category) chips.push(['category', meta.categories.find((c) => c.slug === filters.category)?.name || filters.category]);
     if (filters.location) chips.push(['location', meta.locations.find((l) => l.slug === filters.location)?.name || filters.location]);
     if (filters.availability) chips.push(['availability', meta.availability.find((a) => a.value === filters.availability)?.label || filters.availability]);
@@ -76,12 +89,12 @@
 
   function buildQuery() {
     const params = new URLSearchParams();
-    for (const key of ['q', 'category', 'location', 'availability', 'max_price', 'verified']) {
+    for (const key of ['q', 'group', 'category', 'location', 'availability', 'max_price', 'verified']) {
       if (filters[key]) params.set(key, filters[key]);
     }
     if (filters.sort && filters.sort !== 'rating') params.set('sort', filters.sort);
     if (filters.page > 1) params.set('page', filters.page);
-    params.set('per_page', '9');
+    params.set('per_page', String(filters.perPage));
     return params;
   }
 
@@ -107,24 +120,16 @@
     }
   }
 
-  function renderPager({ page, pages, total, perPage }) {
-    const pager = document.getElementById('pager');
-    if (pages <= 1) { pager.innerHTML = ''; return; }
-    const from = (page - 1) * perPage + 1;
-    const to = Math.min(total, page * perPage);
-    const buttons = [`<button data-page="1" ${page === 1 ? 'disabled' : ''}>«</button>`, `<button data-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>‹</button>`];
-    const start = Math.max(1, page - 2);
-    const end = Math.min(pages, start + 4);
-    for (let p = start; p <= end; p += 1) buttons.push(`<button data-page="${p}" class="${p === page ? 'active' : ''}">${p}</button>`);
-    buttons.push(`<button data-page="${page + 1}" ${page === pages ? 'disabled' : ''}>›</button>`, `<button data-page="${pages}" ${page === pages ? 'disabled' : ''}>»</button>`);
-    pager.innerHTML = `<span class="small muted" style="margin-right:.6rem">Showing ${from}–${to} of ${total}</span>` + buttons.join('');
-    pager.querySelectorAll('button[data-page]').forEach((b) => b.addEventListener('click', () => {
-      filters.page = Number(b.dataset.page); load(); window.scrollTo({ top: 0, behavior: 'smooth' });
-    }));
+  function renderPager(pagination) {
+    pager('pager', pagination, {
+      unit: 'provider',
+      onPage: (p) => { filters.page = p; load(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
+      onPerPage: (n) => { filters.perPage = n; filters.page = 1; load(); },
+    });
   }
 
   function clearAll() {
-    Object.assign(filters, { q: '', category: '', location: '', availability: '', max_price: '', verified: '', sort: 'rating', page: 1 });
+    Object.assign(filters, { q: '', group: '', category: '', location: '', availability: '', max_price: '', verified: '', sort: 'rating', page: 1 });
     document.getElementById('filter-form').reset();
     document.getElementById('quick-search').value = '';
     document.getElementById('sort').value = 'rating';
@@ -133,9 +138,14 @@
   }
 
   document.getElementById('filter-form').addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-cat],button[data-loc],button[data-av]');
+    const btn = e.target.closest('button[data-group],button[data-cat],button[data-loc],button[data-av]');
     if (!btn) return;
     e.preventDefault();
+    if (btn.dataset.group !== undefined) {
+      filters.group = filters.group === btn.dataset.group ? '' : btn.dataset.group;
+      // A category from another industry would contradict the new group filter.
+      filters.category = '';
+    }
     if (btn.dataset.cat !== undefined) filters.category = filters.category === btn.dataset.cat ? '' : btn.dataset.cat;
     if (btn.dataset.loc !== undefined) filters.location = filters.location === btn.dataset.loc ? '' : btn.dataset.loc;
     if (btn.dataset.av !== undefined) filters.availability = filters.availability === btn.dataset.av ? '' : btn.dataset.av;
@@ -187,9 +197,10 @@
 
   (async function init() {
     try {
-      const [cats, locs, provMeta] = await Promise.all([
-        api('/meta/categories?kind=service'), api('/meta/locations'), api('/providers?per_page=1'),
+      const [groups, cats, locs, provMeta] = await Promise.all([
+        api('/meta/groups?kind=service'), api('/meta/categories?kind=service'), api('/meta/locations'), api('/providers?per_page=1'),
       ]);
+      meta.groups = groups.groups;
       meta.categories = cats.categories;
       meta.locations = locs.locations;
       meta.availability = provMeta.filters.availability;

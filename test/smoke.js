@@ -54,9 +54,26 @@ async function main() {
   const locs = await call('/meta/locations');
   check('locations exist', locs.data.locations.length >= 10);
 
+  console.log('\nIndustry groups & taxonomy');
+  const groups = await call('/meta/groups');
+  check('industry groups are listed', groups.data.groups.length >= 8, `${groups.data.groups.length} groups`);
+  check('every group reports a category count', groups.data.groups.every((g) => g.categoryCount > 0));
+  check('group counts cover jobs and providers', groups.data.groups.some((g) => g.jobCount > 0) && groups.data.groups.some((g) => g.providerCount > 0));
+  const jobGroups = await call('/meta/groups?kind=job');
+  check('groups can be scoped to jobs', jobGroups.data.groups.every((g) => g.scope === 'job' || g.scope === 'both'));
+  const aGroup = groups.data.groups.find((g) => g.jobCount > 0);
+  const groupDetail = await call('/meta/groups/' + aGroup.slug);
+  check('group detail returns its categories', groupDetail.status === 200 && groupDetail.data.categories.length > 0);
+  check('group detail reports the group totals', groupDetail.data.group.slug === aGroup.slug && groupDetail.data.group.categoryCount === groupDetail.data.categories.length);
+  check('categories carry their group', cats.data.categories.every((c) => c.group && c.group.slug));
+  const missingGroup = await call('/meta/groups/no-such-group');
+  check('unknown group returns 404', missingGroup.status === 404);
+
+  console.log('\nStats');
   const stats = await call('/meta/stats');
   check('public stats report approved jobs', stats.data.totals.approvedJobs > 0, JSON.stringify(stats.data.totals));
   check('public stats report approved providers', stats.data.totals.approvedProviders > 0);
+  check('public stats break activity down by group', Array.isArray(stats.data.byGroup) && stats.data.byGroup.length > 0);
 
   console.log('\nJob browsing & filtering');
   const jobs = await call('/jobs?per_page=5');
@@ -71,6 +88,18 @@ async function main() {
   check('job type filter works', byType.data.jobs.length > 0 && byType.data.jobs.every((j) => j.jobType === 'contract'));
   const bySalary = await call('/jobs?min_salary=300');
   check('salary filter works', bySalary.data.jobs.length > 0 && bySalary.data.jobs.every((j) => Math.max(j.salaryMax || 0, j.salaryMin || 0) >= 300));
+  const byGroup = await call('/jobs?group=' + aGroup.slug);
+  check('industry group filter works', byGroup.data.jobs.length > 0 && byGroup.data.jobs.every((j) => j.group && j.group.slug === aGroup.slug), `${byGroup.data.jobs.length} jobs`);
+  const badGroup = await call('/jobs?group=not-a-real-group');
+  check('unknown group filter is ignored', badGroup.data.pagination.total === jobs.data.pagination.total, `${badGroup.data.pagination.total} vs ${jobs.data.pagination.total}`);
+  const paged = await call('/jobs?per_page=5&page=2');
+  check('page 2 returns a distinct slice', paged.data.pagination.page === 2 && paged.data.jobs.every((j) => !jobs.data.jobs.some((x) => x.id === j.id)));
+  const clamped = await call('/jobs?page=99999');
+  check('out of range page clamps to the last page', clamped.data.pagination.page === clamped.data.pagination.pages);
+  const perPageCapped = await call('/jobs?per_page=9999');
+  check('per page is capped to a sane maximum', perPageCapped.data.pagination.perPage <= 100, `perPage ${perPageCapped.data.pagination.perPage}`);
+  const ftsSearch = await call('/jobs?q=borehole');
+  check('full text search matches listing content', ftsSearch.data.jobs.length > 0, `${ftsSearch.data.jobs.length} results`);
 
   const firstJob = jobs.data.jobs[0];
   const jobDetail = await call('/jobs/' + firstJob.id);
@@ -92,6 +121,11 @@ async function main() {
   check('provider category filter works', provFiltered.data.providers.length > 0 && provFiltered.data.providers.every((p) => p.category.slug === 'plumbing-boreholes'));
   const verifiedOnly = await call('/providers?verified=1');
   check('verified filter works', verifiedOnly.data.providers.length > 0 && verifiedOnly.data.providers.every((p) => p.verified === true));
+  const provGroup = groups.data.groups.find((g) => g.providerCount > 0);
+  const byProvGroup = await call('/providers?group=' + provGroup.slug);
+  check('provider industry group filter works', byProvGroup.data.providers.length > 0 && byProvGroup.data.providers.every((p) => p.group && p.group.slug === provGroup.slug));
+  const provSearch = await call('/providers?q=solar');
+  check('provider full text search works', provSearch.data.providers.length > 0, `${provSearch.data.providers.length} results`);
   const provDetail = await call('/providers/' + providers.data.providers[0].id);
   check('provider detail includes reviews', Array.isArray(provDetail.data.reviews));
   check('provider detail includes services list', Array.isArray(provDetail.data.provider.services) && provDetail.data.provider.services.length > 0);
@@ -133,6 +167,7 @@ async function main() {
   check('seeker can save a provider', saveProv.data.saved === true);
   const myApps = await call('/dashboard/applications', { token: seeker });
   check('seeker sees own application', myApps.data.applications.some((a) => a.jobId === firstJob.id));
+  check('seeker application list is paginated', myApps.data.pagination && myApps.data.pagination.page === 1);
   const withdraw = await call(`/dashboard/applications/${apply.data.application.id}`, { method: 'PATCH', token: seeker, body: { status: 'withdrawn' } });
   check('seeker can withdraw own application', withdraw.status === 200 && withdraw.data.application.status === 'withdrawn');
   const seekerOverview = await call('/dashboard/overview', { token: seeker });
@@ -247,6 +282,23 @@ async function main() {
   const delCat = await call('/admin/categories/' + newCat.data.category.id, { method: 'DELETE', token: admin });
   check('unused category can be deleted', delCat.status === 200);
 
+  const adminGroups = await call('/admin/groups', { token: admin });
+  check('admin can list industry groups', adminGroups.status === 200 && adminGroups.data.groups.length >= 8);
+  const newGroup = await call('/admin/groups', { method: 'POST', token: admin, body: { name: 'Smoke Group ' + stamp, icon: '🧪', scope: 'job', description: 'Created by smoke test' } });
+  check('admin can create a group', newGroup.status === 201 && newGroup.data.group.slug);
+  const dupGroup = await call('/admin/groups', { method: 'POST', token: admin, body: { name: 'Smoke Group ' + stamp } });
+  check('duplicate group name is rejected', dupGroup.status === 409);
+  const groupedCat = await call('/admin/categories', { method: 'POST', token: admin, body: { name: 'Grouped Cat ' + stamp, kind: 'job', group_id: newGroup.data.group.id } });
+  check('admin can assign a category to a group', groupedCat.status === 201);
+  const groupWithCats = await call('/admin/groups/' + newGroup.data.group.id, { method: 'DELETE', token: admin });
+  check('group with categories cannot be deleted', groupWithCats.status === 400);
+  await call('/admin/categories/' + groupedCat.data.category.id, { method: 'DELETE', token: admin });
+  const delGroup = await call('/admin/groups/' + newGroup.data.group.id, { method: 'DELETE', token: admin });
+  check('empty group can be deleted', delGroup.status === 200);
+
+  const nonAdminGroups = await call('/admin/groups', { token: employer });
+  check('non-admin cannot manage groups', nonAdminGroups.status === 403);
+
   const newLoc = await call('/admin/locations', { method: 'POST', token: admin, body: { name: 'Smoke Village ' + stamp, kind: 'village', notes: 'Test location' } });
   check('admin can create a location', newLoc.status === 201);
   const delLoc = await call('/admin/locations/' + newLoc.data.location.id, { method: 'DELETE', token: admin });
@@ -279,7 +331,7 @@ async function main() {
   check('provider can delete own listing', delListing.status === 200);
 
   console.log('\nStatic frontend');
-  for (const page of ['/', '/jobs.html', '/job.html', '/providers.html', '/provider.html', '/login.html', '/register.html', '/dashboard.html', '/admin.html', '/about.html', '/css/app.css', '/js/core.js', '/js/admin.js']) {
+  for (const page of ['/', '/jobs.html', '/job.html', '/providers.html', '/provider.html', '/categories.html', '/category.html', '/login.html', '/register.html', '/dashboard.html', '/admin.html', '/about.html', '/css/app.css', '/js/core.js', '/js/admin.js', '/js/categories.js', '/js/category.js']) {
     const res = await fetch(BASE + page);
     check(`serves ${page}`, res.status === 200);
   }

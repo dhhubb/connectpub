@@ -24,7 +24,9 @@ A job listings and service provider listings web app for Plumtree, Matabeleland 
 - **Only one runtime dependency: Express.** Persistence uses the built-in `node:sqlite` module (`DatabaseSync`). Do not add an npm SQLite driver — it would require native compilation. Node 22.5+ is required and enforced in `package.json` engines.
 - **Auth is hand-rolled** in `src/auth.js`: scrypt password hashing plus an in-memory `Map` of bearer tokens. There is no cookie session and no JWT. `attachUser(loadUser)` is registered in `src/server.js` and populates `req.user`; `loadUser` is injected to avoid a circular import between `auth.js` and `db.js`.
 - **Route modules export their router.** `src/routes/jobs.js`, `providers.js` and `dashboard.js` export objects (`{ router, serializeX }`) because the admin router reuses their serializers. `src/routes/auth.js`, `meta.js` and `admin.js` export a bare router.
-- **`src/util.js` is the shared vocabulary**: enum arrays (`JOB_TYPES`, `USER_ROLES`, …), display label maps, `pickEnum` for validating enum input, `pageParams` for pagination, `logAudit` for the audit trail, and `publicUser` to strip password hashes before anything reaches the client.
+- **`src/util.js` is the shared vocabulary**: enum arrays (`JOB_TYPES`, `USER_ROLES`, …), display label maps, `pickEnum` for validating enum input, `pageParams` for pagination, `ftsQuery` for sanitising keyword search, `logAudit` for the audit trail, and `publicUser` to strip password hashes before anything reaches the client.
+- **The taxonomy lives in `src/catalogue.js`.** `GROUPS` and `categoriesFor(kind)` are the source of truth; `syncCatalogue()` in `src/db.js` mirrors them into the `category_groups` and `categories` tables on every boot, so editing the catalogue and restarting is enough to change the taxonomy. Public `/meta/groups` and `/meta/groups/:slug` expose it; jobs and providers accept a `group` filter that resolves a slug (or id) to `category_groups.id`.
+- **Keyword search uses FTS5.** `jobs_fts` and `providers_fts` are external-content-free tables rebuilt by `rebuildSearchIndex()`; `ftsQuery()` turns raw user input into a safe `MATCH` expression. The server backfills them on boot if they are empty.
 
 ## Conventions
 
@@ -39,7 +41,7 @@ A job listings and service provider listings web app for Plumtree, Matabeleland 
 
 ## Data model (SQLite, `data/plumtree.db`)
 
-`users`, `categories` (kind = job|service), `locations` (town|ward|village), `jobs`, `providers`, `applications`, `service_requests`, `reviews`, `saved_items` (polymorphic over job|provider), `audit_log`, `settings` (key/value).
+`users`, `category_groups`, `categories` (kind = job|service, `group_id` → `category_groups`), `locations` (town|ward|village), `jobs`, `providers`, `applications`, `service_requests`, `reviews`, `saved_items` (polymorphic over job|provider), `audit_log`, `settings` (key/value), plus the FTS5 shadow tables `jobs_fts` and `providers_fts`.
 
 Status vocabularies are enforced by `CHECK` constraints — see `src/db.js`:
 - jobs: `pending | approved | rejected | closed | expired`
@@ -53,7 +55,7 @@ The schema is created with `CREATE TABLE IF NOT EXISTS` in `migrate()` and runs 
 
 ## Testing notes
 
-- `test/smoke.js` is the single source of truth for behaviour. It makes ~106 assertions across health, public catalogue, filters, auth, all three user roles, admin moderation, authorisation boundaries, validation, audit and static serving.
+- `test/smoke.js` is the single source of truth for behaviour. It makes ~135 assertions across health, public catalogue, industry groups, filters, pagination, full-text search, auth, all three user roles, admin moderation, authorisation boundaries, validation, audit and static serving.
 - It creates its own fixtures (users, jobs, listings, categories, locations) using `Date.now()` suffixes and cleans them up at the end, so it is repeatable.
 - Run against a fresh database for the most reliable result: stop the server, `rm -f data/plumtree.db*`, `npm start`, then `npm run smoke`.
 - The test asserts that pending listings never leak into public responses, that non-owners cannot mutate others' records, and that suspended users cannot authenticate. Keep those properties when changing code.
