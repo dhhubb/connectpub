@@ -10,13 +10,13 @@ Plumtree Connect brings two things together that usually live apart: paid work, 
 
 ### Public site
 - **Home** — live platform statistics, featured jobs, top-rated providers, category explorer and district activity chart.
-- **Category explorer** (`/categories.html`) — every industry group (real estate, agriculture, transport and logistics, retail and wholesale, professional services, construction and trades, manufacturing, energy, ICT, health, education, hospitality, home and domestic, personal care, security, events and media) in one grid, searchable and filterable by scope.
-- **Category page** (`/category.html?group=`) — one industry with its sub-categories, switching between the jobs and providers inside it.
-- **Job board** (`/jobs.html`) — search and filter by keyword, industry, category, area, job type, work mode and minimum salary. Sort by newest, closing soon, highest salary or most viewed. Full pagination with per-page control.
-- **Job detail** (`/job.html?id=`) — full description, requirements checklist, salary, deadline countdown, employer contact details and a one-click apply flow.
-- **Service directory** (`/providers.html`) — filter by industry, service category, area, availability, price and verified status. Sort by rating, experience, price or popularity.
-- **Provider detail** (`/provider.html?id=`) — services offered, star ratings and reviews, contact details (phone, WhatsApp, email) and a service request form.
-- **About** (`/about.html`) — how the platform works and the role matrix.
+- **Category explorer** (`/categories`) — every industry group (real estate, agriculture, transport and logistics, retail and wholesale, professional services, construction and trades, manufacturing, energy, ICT, health, education, hospitality, home and domestic, personal care, security, events and media) in one grid, searchable and filterable by scope.
+- **Category page** (`/categories/:slug`) — one industry with its sub-categories, switching between the jobs and providers inside it.
+- **Job board** (`/jobs`) — search and filter by keyword, industry, category, area, job type, work mode and minimum salary. Sort by newest, closing soon, highest salary or most viewed. Full pagination with per-page control.
+- **Job detail** (`/jobs/:id`) — full description, requirements checklist, salary, deadline countdown, employer contact details and a one-click apply flow.
+- **Service directory** (`/providers`) — filter by industry, service category, area, availability, price and verified status. Sort by rating, experience, price or popularity.
+- **Provider detail** (`/providers/:id`) — services offered, star ratings and reviews, contact details (phone, WhatsApp, email) and a service request form.
+- **About** (`/about`) — how the platform works and the role matrix.
 
 ### Accounts and roles
 | Role | Capabilities | Dashboard |
@@ -26,10 +26,10 @@ Plumtree Connect brings two things together that usually live apart: paid work, 
 | **Service provider** | Publish a business listing, receive and manage service requests, collect reviews | Listings, requests, profile |
 | **Administrator** | Moderate all listings, verify providers, manage users, categories, locations, reviews and settings | Full admin panel with statistics |
 
-### User dashboard (`/dashboard.html`)
+### User dashboard (`/dashboard`)
 Role-aware navigation. Includes an overview with role-specific statistic cards and recent activity, full application tracking (submitted → reviewing → shortlisted → interview → hired), service request management with quotes and status flow, saved items, listing CRUD with validation, applicant review with internal notes, and profile plus password management.
 
-### Admin panel (`/admin.html`)
+### Admin panel (`/admin`)
 - **Dashboard** — 10 headline metrics, a 14-day stacked activity column chart, four donut charts, status breakdowns, category breakdowns, busiest locations, most-viewed jobs and providers, and a live activity feed.
 - **Job moderation** — filter by status, inspect full listings, approve, reject with a reason, feature/unfeature.
 - **Service moderation** — approve, reject, verify and feature providers.
@@ -46,28 +46,39 @@ Role-aware navigation. Includes an overview with role-specific statistic cards a
 | Layer | Choice | Why |
 | --- | --- | --- |
 | Runtime | Node.js 22.5+ | Required for the built-in SQLite module |
-| Server | Express 4 | Minimal, well-understood HTTP layer |
+| Framework | Next.js 14 (App Router) + React 18 | File-based routing, server components, one toolchain for UI and API |
+| Language | TypeScript (strict) | Type-safe API contracts and components |
 | Database | `node:sqlite` (`DatabaseSync`) | Built into Node — zero native dependencies to compile |
 | Search | SQLite FTS5 (`jobs_fts`, `providers_fts`) | Full-text keyword search with no extra service |
 | Auth | `node:crypto` scrypt + in-memory bearer sessions | No external auth dependency |
-| Frontend | Vanilla HTML, CSS and ES5-safe JavaScript | No build step, no bundler, instant start |
+| Styling | Hand-written CSS design system | No CSS framework or build-time styling pipeline |
 
-There are no compiled native modules and no build tooling, so `npm install` installs a single package (Express).
+There are no compiled native modules. `node:sqlite` is built into Node, so `npm install` only pulls Next.js, React and TypeScript.
+
+The original Express + vanilla-JS implementation is preserved under `legacy/` for reference and is not part of the build.
 
 ---
 
 ## Getting started
 
 ```bash
-npm install     # installs Express (the only dependency)
-npm start       # seeds the database on first run and serves on port 3000
+npm install          # installs Next.js, React and TypeScript
+npm run dev          # development server with hot reload on port 3000
 ```
 
 Open <http://localhost:3000>.
 
-- Change the port with `PORT=8080 npm start`.
+For a production run:
+
+```bash
+npm run build        # compile the app
+npm start            # serve the build on port 3000
+```
+
+- Change the port with `PORT=8080 npm start` (or `npm run dev -- -p 8080`).
 - Point at a different database file with `DB_PATH=/path/to/file.db npm start`.
-- Rebuild the sample data with `npm run seed` (destructive — wipes and reseeds).
+- Rebuild the sample data with `npm run seed -- --force` (destructive — wipes and reseeds).
+- Typecheck the whole project with `npm run typecheck`.
 
 ### Demo accounts
 
@@ -86,14 +97,14 @@ The sign-in page has one-click buttons that fill these credentials.
 
 ## Testing
 
-An end-to-end smoke test covers all four roles, both moderation queues, authorisation boundaries, validation errors, the public API and static file serving:
+An end-to-end smoke test covers all four roles, both moderation queues, authorisation boundaries, validation errors and the public API:
 
 ```bash
-npm start                 # in one terminal
-npm run smoke             # in another
+npm run build && npm start            # in one terminal
+BASE=http://localhost:3000 npm run smoke   # in another
 ```
 
-Result: **135 assertions passing**. The test creates and cleans up its own records, so it is safe to run repeatedly. Override the target with `BASE=http://localhost:8080 npm run smoke`.
+Result: **116 assertions passing**. The test creates and cleans up its own records, so it is safe to run repeatedly. Override the target with `BASE=http://localhost:8080 npm run smoke`. `npm run typecheck` must pass before committing.
 
 ---
 
@@ -101,36 +112,35 @@ Result: **135 assertions passing**. The test creates and cleans up its own recor
 
 ```
 src/
-  server.js          Express app, static hosting, error handling, startup
-  db.js              Schema, migrations, FTS indexes (node:sqlite)
-  catalogue.js       Source-of-truth taxonomy: industry groups and categories
-  seed.js            Plumtree-specific sample data
-  auth.js            scrypt password hashing and bearer session store
-  util.js            Shared helpers, enums, labels, pagination, audit logging
-  routes/
-    auth.js          Register, login, logout, profile, password change
-    meta.js          Public groups, categories, locations, statistics, settings
-    jobs.js          Job CRUD, browsing, filters, apply, save
-    providers.js     Provider CRUD, browsing, filters, requests, reviews, save
-    dashboard.js     Role-aware user dashboard endpoints
-    admin.js         Moderation, users, groups, categories, locations, reviews, audit, settings
-public/
-  index.html         Home
-  categories.html    Category explorer  js/categories.js
-  category.html      Category page      js/category.js
-  jobs.html          Job board          js/jobs.js
-  job.html           Job detail         js/job.js
-  providers.html     Service directory  js/providers.js
-  provider.html      Provider detail    js/provider.js
-  login.html         Sign in            js/login.js
-  register.html      Registration       js/register.js
-  dashboard.html     User dashboard     js/dashboard.js
-  admin.html         Admin panel        js/admin.js
-  about.html         404.html
-  css/app.css        Design system
-  js/core.js         API client, formatting, pager, toasts, modals, header/footer
+  app/
+    layout.tsx       Root layout: metadata, SessionProvider, UiProvider
+    globals.css      Imports the design system
+    not-found.tsx    404 page
+    (site)/          Public + dashboard pages (shared header/footer layout)
+      page.tsx                 Home
+      categories/              Category explorer and category detail
+      jobs/                    Job board and job detail
+      providers/               Service directory and provider detail
+      login/ register/ about/  Auth and info pages
+      dashboard/               Role-aware user dashboard
+      admin/                   Administrator panel
+    api/             Route handlers, mirroring the endpoints below
+  components/        Shared UI plus admin/ and dashboard/ view components
+  lib/
+    db.ts            Schema, migrations, FTS indexes, boot (node:sqlite)
+    http.ts          route() wrapper, Ctx, requireAuth / requireRole
+    auth.ts          scrypt password hashing and bearer session store
+    catalogue.ts     Source-of-truth taxonomy: industry groups and categories
+    seed.ts          Plumtree-specific sample data
+    util.ts          Shared helpers, enums, labels, pagination, audit logging
+    jobs.ts providers.ts groups.ts serialize.ts   Domain serializers
+    client/          Browser helpers: api, session, ui, format, types
+  styles/app.css     Design system
+scripts/
+  seed.ts            Reseed entry point (npm run seed)
 test/
-  smoke.js           End-to-end API and static-site test
+  smoke.ts           End-to-end API test (npm run smoke)
+legacy/              Original Express + vanilla-JS app (reference only)
 data/
   plumtree.db        SQLite database (created on first run)
 ```
@@ -188,7 +198,7 @@ The catalogue is two levels deep, defined once in `src/catalogue.js` and mirrore
 1. **Industry groups** — the broad sectors people recognise: real estate and property, agriculture and livestock, transport and logistics, retail and wholesale, professional services, construction and trades, manufacturing and industry, energy and utilities, ICT and admin, health and care, education and training, hospitality and tourism, home and domestic, personal care and wellness, security services, events and media.
 2. **Categories** — the specific trades inside each group, each tagged `job` or `service` and carrying the icon and description shown on the site.
 
-`/categories.html` lists every group as a card with live job and provider counts. `/category.html?group=<slug>` opens one group, shows its sub-categories as filter chips, and toggles between the jobs and providers inside it. The job board and service directory also expose the group as a top-level "Industry" filter, which narrows the category list beneath it.
+`/categories` lists every group as a card with live job and provider counts. `/categories/<slug>` opens one group, shows its sub-categories as filter chips, and toggles between the jobs and providers inside it. The job board and service directory also expose the group as a top-level "Industry" filter, which narrows the category list beneath it.
 
 Keyword search on both boards runs through SQLite FTS5 (`jobs_fts`, `providers_fts`). The indexes are populated at seed time and backfilled on boot if a database predates them.
 

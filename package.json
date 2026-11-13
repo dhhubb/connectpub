@@ -1,20 +1,31 @@
 {
   "name": "plumtree-connect",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "private": true,
   "description": "Plumtree Connect - job and service provider listings platform for Plumtree, Matabeleland South",
-  "main": "src/server.js",
-  "type": "commonjs",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "seed": "node src/db.js --force",
-    "smoke": "node test/smoke.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx scripts/seed.ts",
+    "smoke": "tsx test/smoke.ts"
   },
   "engines": {
     "node": ">=22.5.0"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.2"
   },
   "license": "MIT"
 }
