@@ -9,6 +9,8 @@ function serializeAdminGroup(g: Row): Row {
   };
 }
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   requireRole(ctx, 'admin');
   const rows = db.prepare(`

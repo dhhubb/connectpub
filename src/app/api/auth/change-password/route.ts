@@ -3,6 +3,8 @@ import { hashPassword, verifyPassword } from '@/lib/auth';
 import { route, requireAuth } from '@/lib/http';
 import { logAudit } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const POST = route(async (ctx) => {
   const user = requireAuth(ctx);
   const current = String(ctx.body.currentPassword || '');

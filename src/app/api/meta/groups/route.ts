@@ -3,6 +3,8 @@ import { route } from '@/lib/http';
 import type { Row } from '@/lib/util';
 import { serializeGroup, groupCounts } from '@/lib/groups';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const kind = ctx.query.get('kind');
   const where = kind ? "WHERE g.scope IN ('both', ?)" : '';

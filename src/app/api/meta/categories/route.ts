@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route } from '@/lib/http';
 import type { Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const kind = ctx.query.get('kind');
   const rows = (kind

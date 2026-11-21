@@ -5,6 +5,8 @@ import { serializeJob } from '@/lib/jobs';
 
 const JOB_STATUSES = ['pending', 'approved', 'rejected', 'closed', 'expired'] as const;
 
+export const dynamic = 'force-dynamic';
+
 export const PATCH = route(async (ctx) => {
   const user = requireRole(ctx, 'admin');
   const id = toInt(ctx.params.id);

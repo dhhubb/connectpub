@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+legacy
+.git
+.gitignore
+data
+*.log
+.env
+.env.*
+.DS_Store
+*.tsbuildinfo
+README.md
+DEPLOYMENT.md

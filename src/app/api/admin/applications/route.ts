@@ -3,6 +3,8 @@ import { route, requireRole } from '@/lib/http';
 import { pageParams, pickEnum, APPLICATION_STATUSES, type Row } from '@/lib/util';
 import { serializeApplicationRow } from '@/lib/serialize';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   requireRole(ctx, 'admin');
   const { page, perPage } = pageParams(Object.fromEntries(ctx.query), { defaultPerPage: 24 });

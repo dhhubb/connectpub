@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route, requireRole } from '@/lib/http';
 import { httpError, slugify, logAudit, toInt, type Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const PATCH = route(async (ctx) => {
   const actor = requireRole(ctx, 'admin');
   const id = toInt(ctx.params.id);

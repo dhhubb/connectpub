@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route, requireAuth } from '@/lib/http';
 import { publicUser } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   requireAuth(ctx);
   return { body: { user: ctx.user } };

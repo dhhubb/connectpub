@@ -3,6 +3,8 @@ import { verifyPassword, createSession } from '@/lib/auth';
 import { route } from '@/lib/http';
 import { logAudit, publicUser } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const POST = route(async (ctx) => {
   const email = String(ctx.body.email || '').trim();
   const password = String(ctx.body.password || '');

@@ -4,6 +4,8 @@ import type { Row } from '@/lib/util';
 import { serializeApplicationRow, serializeRequestRow } from '@/lib/serialize';
 // ---------- Overview ----------
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const user = requireAuth(ctx);
   const cards: Record<string, number | null> = {};

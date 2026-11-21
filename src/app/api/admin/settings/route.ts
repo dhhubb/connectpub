@@ -9,6 +9,8 @@ function readSettings(): Record<string, string> {
   return settings;
 }
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   requireRole(ctx, 'admin');
   return { body: { settings: readSettings() } };

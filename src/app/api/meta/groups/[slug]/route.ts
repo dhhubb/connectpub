@@ -3,6 +3,8 @@ import { route } from '@/lib/http';
 import { httpError, toInt, type Row } from '@/lib/util';
 import { serializeGroup, groupCounts } from '@/lib/groups';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const slug = String(ctx.params.slug);
   const group = db.prepare('SELECT * FROM category_groups WHERE slug = ? OR id = ?')

@@ -22,6 +22,8 @@ function jobToBody(job: Row): Row {
   };
 }
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const id = toInt(ctx.params.id);
   const row = db.prepare(`${SELECT_JOB} WHERE j.id = ?`).get(id) as Row | undefined;

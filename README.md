@@ -61,6 +61,10 @@ The original Express + vanilla-JS implementation is preserved under `legacy/` fo
 
 ## Getting started
 
+For a step-by-step walkthrough from a fresh clone to a live public site, see
+**[DEPLOYMENT.md](DEPLOYMENT.md)**. The short version is below.
+
+
 ```bash
 npm install          # installs Next.js, React and TypeScript
 npm run dev          # development server with hot reload on port 3000

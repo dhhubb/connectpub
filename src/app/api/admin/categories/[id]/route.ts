@@ -8,6 +8,8 @@ function groupIdFromSlug(value: unknown): number | null {
   return row ? row.id : null;
 }
 
+export const dynamic = 'force-dynamic';
+
 export const PATCH = route(async (ctx) => {
   const actor = requireRole(ctx, 'admin');
   const id = toInt(ctx.params.id);

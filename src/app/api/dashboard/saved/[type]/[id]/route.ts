@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route, requireAuth } from '@/lib/http';
 import { httpError, pickEnum } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const DELETE = route(async (ctx) => {
   const user = requireAuth(ctx);
   const type = pickEnum(ctx.params.type, ['job', 'provider'] as const, null);

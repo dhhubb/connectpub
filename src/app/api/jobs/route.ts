@@ -10,6 +10,8 @@ import {
 
 // ---------- Public browsing ----------
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const { page, perPage } = pageParams(Object.fromEntries(ctx.query));
   const where = ["j.status = 'approved'"];

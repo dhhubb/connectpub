@@ -3,6 +3,8 @@ import { route, requireAuth } from '@/lib/http';
 import { httpError, logAudit, pickEnum, APPLICATION_STATUSES, type Row } from '@/lib/util';
 import { serializeApplicationRow } from '@/lib/serialize';
 
+export const dynamic = 'force-dynamic';
+
 export const PATCH = route(async (ctx) => {
   const user = requireAuth(ctx);
   const id = Number(ctx.params.id);

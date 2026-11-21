@@ -3,6 +3,8 @@ import { route, requireRole } from '@/lib/http';
 import { hashPassword } from '@/lib/auth';
 import { pageParams, pickEnum, publicUser, logAudit, USER_ROLES, type Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   requireRole(ctx, 'admin');
   const { page, perPage, offset } = pageParams(Object.fromEntries(ctx.query));

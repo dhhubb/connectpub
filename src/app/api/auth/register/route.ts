@@ -29,6 +29,8 @@ function validateRegistration(body: any) {
   };
 }
 
+export const dynamic = 'force-dynamic';
+
 export const POST = route(async (ctx) => {
   const { errors, values } = validateRegistration(ctx.body || {});
   if (Object.keys(errors).length) return { status: 400, body: { error: 'Validation failed', errors } };

@@ -4,6 +4,8 @@ import { serializeJob } from '@/lib/jobs';
 import { serializeProvider } from '@/lib/providers';
 import type { Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const user = requireAuth(ctx);
   const rows = db.prepare('SELECT * FROM saved_items WHERE user_id = ? ORDER BY created_at DESC').all(user.id) as Row[];

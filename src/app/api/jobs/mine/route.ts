@@ -3,6 +3,8 @@ import { route, requireRole } from '@/lib/http';
 import { SELECT_JOB, serializeJob } from '@/lib/jobs';
 import type { Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const user = requireRole(ctx, 'employer', 'admin');
   const rows = (user.role === 'admin'

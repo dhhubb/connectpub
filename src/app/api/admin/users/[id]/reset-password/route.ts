@@ -3,6 +3,8 @@ import { route, requireRole } from '@/lib/http';
 import { hashPassword } from '@/lib/auth';
 import { httpError, logAudit, toInt, type Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const POST = route(async (ctx) => {
   const actor = requireRole(ctx, 'admin');
   const id = toInt(ctx.params.id);

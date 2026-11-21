@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route } from '@/lib/http';
 import { httpError, logAudit, toNum, type Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const POST = route(async (ctx) => {
   const id = Number(ctx.params.id);
   const provider = db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as Row | undefined;

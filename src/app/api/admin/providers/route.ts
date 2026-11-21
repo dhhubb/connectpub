@@ -5,6 +5,8 @@ import { serializeProvider } from '@/lib/providers';
 
 const PROVIDER_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   requireRole(ctx, 'admin');
   const { page, perPage, offset } = pageParams(Object.fromEntries(ctx.query));

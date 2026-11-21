@@ -3,6 +3,8 @@ import { route, requireAuth } from '@/lib/http';
 import { httpError, toInt, type Row } from '@/lib/util';
 import { SELECT_PROVIDER, serializeProvider } from '@/lib/providers';
 
+export const dynamic = 'force-dynamic';
+
 export const POST = route(async (ctx) => {
   const user = requireAuth(ctx);
   const id = Number(ctx.params.id);

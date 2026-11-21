@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route } from '@/lib/http';
 import type { Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async () => {
   const rows = db.prepare('SELECT * FROM locations ORDER BY kind, name').all() as Row[];
   const jobCount = db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE location_id = ? AND status = 'approved'");

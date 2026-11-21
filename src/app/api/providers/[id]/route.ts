@@ -12,6 +12,8 @@ function loadOwnedProvider(ctx: any): Row {
   return provider;
 }
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const id = toInt(ctx.params.id);
   const row = db.prepare(`${SELECT_PROVIDER} WHERE p.id = ?`).get(id) as Row | undefined;

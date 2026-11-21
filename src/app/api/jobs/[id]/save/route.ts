@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route, requireAuth } from '@/lib/http';
 import { httpError } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const POST = route(async (ctx) => {
   const user = requireAuth(ctx);
   const id = Number(ctx.params.id);

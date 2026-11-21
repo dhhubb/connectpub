@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route, requireRole } from '@/lib/http';
 import { slugify, logAudit, type Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   requireRole(ctx, 'admin');
   const rows = db.prepare(`

@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { route, requireRole } from '@/lib/http';
 import { pageParams, pickEnum, type Row } from '@/lib/util';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   requireRole(ctx, 'admin');
   const { page, perPage } = pageParams(Object.fromEntries(ctx.query), { defaultPerPage: 24 });

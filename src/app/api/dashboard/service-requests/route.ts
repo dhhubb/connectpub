@@ -3,6 +3,8 @@ import { route, requireAuth } from '@/lib/http';
 import { pageParams, pickEnum, REQUEST_STATUSES, type Row } from '@/lib/util';
 import { serializeRequestRow } from '@/lib/serialize';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = route(async (ctx) => {
   const user = requireAuth(ctx);
   const { page, perPage } = pageParams(Object.fromEntries(ctx.query), { defaultPerPage: 12 });

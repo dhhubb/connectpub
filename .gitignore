@@ -10,3 +10,5 @@ data/*.db-wal
 .DS_Store
 next-env.d.ts
 *.tsbuildinfo
+data/*
+!data/.gitkeep
